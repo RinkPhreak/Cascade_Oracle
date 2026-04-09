@@ -73,14 +73,16 @@ func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*t
 
 	// Tier 1.1 Fix: Supervisor Goroutine loop for mtproto long-lived connection.
 	go func() {
+		defer func() {
+			// Prevent random MTProto panics from crashing the cascade binary
+			recover()
+		}()
 		// RunUntilCanceled restores dropped connections natively and gracefully dies on ctx cancel.
 		_ = telegram.RunUntilCanceled(runCtx, client)
 	}()
 
 	p.clients[accountID] = client
 	p.cancels[accountID] = cancel
-
-	time.Sleep(200 * time.Millisecond)
 
 	return client, nil
 }
