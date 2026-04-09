@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../features/auth/store';
 import { useNavigate } from 'react-router-dom';
-import { client } from '../api/client';
+
 import { postApiV1AuthLogin } from '../api/generated';
 
 export const LoginPage = () => {
