@@ -20,11 +20,13 @@ type proxyModel struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
 func (proxyModel) TableName() string { return "proxies" }
 
 type accountModel struct {
 	ID              uuid.UUID `gorm:"primaryKey;type:uuid"`
 	Phone           string
+	Channel         string
 	ProxyID         *uuid.UUID `gorm:"type:uuid"`
 	State           string
 	Credentials     string
@@ -34,6 +36,7 @@ type accountModel struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
+
 func (accountModel) TableName() string { return "accounts" }
 
 type accountEventModel struct {
@@ -43,6 +46,7 @@ type accountEventModel struct {
 	Payload   string
 	CreatedAt time.Time
 }
+
 func (accountEventModel) TableName() string { return "account_events" }
 
 type sessionModel struct {
@@ -50,6 +54,7 @@ type sessionModel struct {
 	SessionData []byte
 	UpdatedAt   time.Time
 }
+
 func (sessionModel) TableName() string { return "sessions" }
 
 // -- Repository --
@@ -75,6 +80,7 @@ func toDomainAccount(am *accountModel) *domain.Account {
 	return &domain.Account{
 		ID:              am.ID,
 		Phone:           am.Phone,
+		Channel:         am.Channel,
 		ProxyID:         pID,
 		Status:          domain.AccountState(am.State),
 		Credentials:     am.Credentials,
@@ -90,6 +96,7 @@ func fromDomainAccount(a *domain.Account) *accountModel {
 	am := &accountModel{
 		ID:              a.ID,
 		Phone:           a.Phone,
+		Channel:         a.Channel,
 		ProxyID:         nil,
 		State:           string(a.Status),
 		Credentials:     a.Credentials,
@@ -139,10 +146,12 @@ func (r *gormAccountRepo) UpdateAccount(ctx context.Context, account *domain.Acc
 	return ExtractDB(ctx, r.db).Save(m).Error
 }
 
-func (r *gormAccountRepo) GetLeastBusyActiveAccount(ctx context.Context) (*domain.Account, error) {
+func (r *gormAccountRepo) GetLeastBusyActiveAccount(ctx context.Context, channel string) (*domain.Account, error) {
 	var m accountModel
-	
+
 	err := ExtractDB(ctx, r.db).
+		Where("channel = ?", channel).
+		Where("created_at < ?", time.Now().Add(-48*time.Hour)).
 		Where("state = ? OR state = ?", domain.StateActive, domain.StateWarmingUp).
 		Where("cooldown_until IS NULL OR cooldown_until <= ?", time.Now()).
 		Order("daily_send_count asc, daily_check_count asc").

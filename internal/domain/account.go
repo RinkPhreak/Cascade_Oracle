@@ -43,6 +43,7 @@ func (p *Proxy) MarkDegraded() {
 type Account struct {
 	ID              uuid.UUID
 	Phone           string
+	Channel         string
 	ProxyID         uuid.UUID
 	Status          AccountState
 	Credentials     string // AES-256-GCM Encrypted

@@ -45,11 +45,16 @@ func (w *StuckAttemptWatchdog) RecoverStuck(ctx context.Context, timeout time.Du
 			continue
 		}
 
-		// Requeue for fallback
+		// Requeue for fallback (downstream cascade)
+		fallbackChannel := attempt.Channel
+		if fallbackChannel == "telegram" {
+			fallbackChannel = "sms"
+		}
+
 		payload := domain.WaterfallPayload{
 			CampaignID: attempt.CampaignID,
 			ContactID:  attempt.ContactID,
-			Channel:    attempt.Channel,
+			Channel:    fallbackChannel,
 		}
 		
 		if err := w.enqueuer.EnqueueWaterfall(ctx, payload, nil); err != nil {

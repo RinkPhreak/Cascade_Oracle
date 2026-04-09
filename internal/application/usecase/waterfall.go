@@ -2,9 +2,11 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,7 +85,7 @@ func (u *WaterfallUseCase) ProcessContact(ctx context.Context, payload domain.Wa
 		var proxy *domain.Proxy
 
 		if channel == "telegram" {
-			account, err = u.accountRepo.GetLeastBusyActiveAccount(ctx)
+			account, err = u.accountRepo.GetLeastBusyActiveAccount(ctx, channel)
 			if err != nil {
 				continue // Exhausted active pool, fallback to SMS
 			}
@@ -135,6 +137,10 @@ func (u *WaterfallUseCase) ProcessContact(ctx context.Context, payload domain.Wa
 			continue
 		}
 
+		// Decrypt Name for templating
+		plainName, _ := u.crypto.Decrypt(contact.Name)
+		if plainName == "" { plainName = "User" }
+
 		if channel == "telegram" {
 			presence, pErr := u.checkTelegramPresence(ctx, account, plainPhone)
 			if pErr != nil || !presence {
@@ -149,7 +155,12 @@ func (u *WaterfallUseCase) ProcessContact(ctx context.Context, payload domain.Wa
 			continue
 		}
 
-		result, resultErr := u.sendWithRetry(ctx, channel, account, existing, plainPhone, template.Content)
+		// Tier 2.4: Render Template
+		text := template.Content
+		text = strings.ReplaceAll(text, "{{Name}}", plainName)
+		text = strings.ReplaceAll(text, "{{Phone}}", plainPhone)
+
+		result, resultErr := u.sendWithRetry(ctx, channel, account, existing, plainPhone, text)
 		if resultErr == nil && result == domain.AttemptStatusDelivered {
 			pref := &domain.ContactChannelPreference{
 				ContactID:        contact.ID,
@@ -246,8 +257,12 @@ func (u *WaterfallUseCase) checkTelegramPresence(ctx context.Context, account *d
 	
 	if found {
 		u.cache.Set(ctx, keyPos, "1", 6*time.Hour)
+		account.IncrementDailyCheck()
+		_ = u.accountRepo.UpdateAccount(ctx, account)
 	} else {
 		u.cache.Set(ctx, keyNeg, "1", 20*time.Minute)
+		account.IncrementDailyCheck()
+		_ = u.accountRepo.UpdateAccount(ctx, account)
 	}
 	
 	return found, nil
@@ -309,7 +324,7 @@ func (u *WaterfallUseCase) sendWithRetry(
 		}
 
 		if channel == "telegram" {
-			if err.Error() == "PEER_FLOOD" {
+			if errors.Is(err, domain.ErrPeerFlood) {
 				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
 				if acc != nil {
 					acc.SetCooldown(time.Now().Add(24 * time.Hour))
@@ -318,7 +333,7 @@ func (u *WaterfallUseCase) sendWithRetry(
 				u.failAttempt(ctx, attempt, "PEER_FLOOD", err.Error())
 				return domain.AttemptStatusFailed, err // Escalate so waterfall loop switches account
 			}
-			if err.Error() == "AUTH_KEY_UNREGISTERED" {
+			if errors.Is(err, domain.ErrAuthUnregistered) {
 				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
 				if acc != nil {
 					acc.TransitionState(domain.StateBanned)
@@ -327,7 +342,7 @@ func (u *WaterfallUseCase) sendWithRetry(
 				u.failAttempt(ctx, attempt, "BANNED", err.Error())
 				return domain.AttemptStatusFailed, err // Escalate
 			}
-			if err == domain.ErrUserNotFound {
+			if errors.Is(err, domain.ErrUserNotFound) {
 				u.failAttempt(ctx, attempt, "NOT_FOUND", err.Error())
 				return domain.AttemptStatusFailed, nil // Not retryable, fallback to SMS gracefully
 			}

@@ -15,7 +15,7 @@ type AccountRepository interface {
 	GetAccountByID(ctx context.Context, id uuid.UUID) (*domain.Account, error)
 	GetAccountByPhone(ctx context.Context, phone string) (*domain.Account, error)
 	UpdateAccount(ctx context.Context, account *domain.Account) error
-	GetLeastBusyActiveAccount(ctx context.Context) (*domain.Account, error)
+	GetLeastBusyActiveAccount(ctx context.Context, channel string) (*domain.Account, error)
 	CountActiveAccounts(ctx context.Context) (int, error)
 	ResetDailyCounters(ctx context.Context) error
 

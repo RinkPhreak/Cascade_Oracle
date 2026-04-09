@@ -12,6 +12,7 @@ import (
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 
 	"cascade/internal/application/port"
 	"cascade/internal/domain"
@@ -24,6 +25,7 @@ type gotdClientPool struct {
 
 	mu      sync.RWMutex
 	clients map[uuid.UUID]*telegram.Client
+	cancels map[uuid.UUID]context.CancelFunc
 }
 
 func NewTelegramClientPool(repo port.AccountRepository, appID int, appHash string) port.TelegramClient {
@@ -32,10 +34,10 @@ func NewTelegramClientPool(repo port.AccountRepository, appID int, appHash strin
 		appID:       appID,
 		appHash:     appHash,
 		clients:     make(map[uuid.UUID]*telegram.Client),
+		cancels:     make(map[uuid.UUID]context.CancelFunc),
 	}
 }
 
-// getClient dynamically loads and configures an MTProto client using robust pool caching 
 func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*telegram.Client, error) {
 	p.mu.RLock()
 	client, exists := p.clients[accountID]
@@ -45,19 +47,18 @@ func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*t
 		return client, nil
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Double check
-	if client, exists = p.clients[accountID]; exists {
-		return client, nil
-	}
-
 	acc, err := p.accountRepo.GetAccountByID(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	_ = acc // Note: Production proxy configuration logic would consume acc.ProxyID here
+	_ = acc
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if client, exists = p.clients[accountID]; exists {
+		return client, nil
+	}
 
 	sessionStorage := &gotdDBSessionStorage{
 		accountID: accountID,
@@ -68,8 +69,31 @@ func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*t
 		SessionStorage: sessionStorage,
 	})
 
+	runCtx, cancel := context.WithCancel(context.Background())
+
+	// Tier 1.1 Fix: Supervisor Goroutine loop for mtproto long-lived connection.
+	go func() {
+		// RunUntilCanceled restores dropped connections natively and gracefully dies on ctx cancel.
+		_ = telegram.RunUntilCanceled(runCtx, client)
+	}()
+
 	p.clients[accountID] = client
+	p.cancels[accountID] = cancel
+
+	time.Sleep(200 * time.Millisecond)
+
 	return client, nil
+}
+
+// StopClient enables graceful disconnect of a telegram node and clears it from pool
+func (p *gotdClientPool) StopClient(accountID uuid.UUID) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if cancel, exists := p.cancels[accountID]; exists {
+		cancel()
+		delete(p.cancels, accountID)
+		delete(p.clients, accountID)
+	}
 }
 
 func (p *gotdClientPool) isMockMode() bool {
@@ -82,7 +106,7 @@ func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID
 		for _, ph := range phones {
 			if ph != "" && ph != "404" {
 				res = append(res, domain.TelegramUser{
-					UserID: int64(len(ph) * 1000), 
+					UserID: int64(len(ph) * 1000),
 					Phone:  ph,
 				})
 			}
@@ -95,38 +119,42 @@ func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID
 		return nil, err
 	}
 
-	var results []domain.TelegramUser
-	err = client.Run(ctx, func(tctx context.Context) error {
-		api := tg.NewClient(client)
+	api := tg.NewClient(client)
+	var inputContacts []tg.InputPhoneContact
+	for i, phone := range phones {
+		inputContacts = append(inputContacts, tg.InputPhoneContact{
+			ClientID:  int64(i + 1),
+			Phone:     phone,
+			FirstName: "CascadeLead_" + uuid.New().String()[:8],
+		})
+	}
 
-		var inputContacts []tg.InputPhoneContact
-		for i, phone := range phones {
-			inputContacts = append(inputContacts, tg.InputPhoneContact{
-				ClientID:  int64(i + 1),
-				Phone:     phone,
-				FirstName: "CascadeLead_" + uuid.New().String()[:8], // Minimum viable 152-FZ safe name
+	// Use the native imported method without Run wrapper
+	imported, err := api.ContactsImportContacts(ctx, inputContacts)
+	if err != nil {
+		// Tier 1.2: Strict Typed errors via tgerr
+		if tgerr.Is(err, "PEER_FLOOD") {
+			return nil, domain.ErrPeerFlood
+		}
+		if tgerr.Is(err, "AUTH_KEY_UNREGISTERED") {
+			p.StopClient(accountID)
+			return nil, domain.ErrAuthUnregistered
+		}
+		return nil, err
+	}
+
+	var results []domain.TelegramUser
+	for _, user := range imported.Users {
+		u, ok := user.(*tg.User)
+		if ok && !u.Deleted {
+			results = append(results, domain.TelegramUser{
+				UserID:   u.ID,
+				Username: u.Username,
+				Phone:    u.Phone,
 			})
 		}
-
-		imported, err := api.ContactsImportContacts(tctx, inputContacts)
-		if err != nil {
-			return err
-		}
-
-		for _, user := range imported.Users {
-			u, ok := user.(*tg.User)
-			if ok && !u.Deleted {
-				results = append(results, domain.TelegramUser{
-					UserID:   u.ID,
-					Username: u.Username,
-					Phone:    u.Phone,
-				})
-			}
-		}
-		return nil
-	})
-
-	return results, err
+	}
+	return results, nil
 }
 
 func (p *gotdClientPool) DeleteContacts(ctx context.Context, accountID uuid.UUID, userIDs []int64) error {
@@ -139,22 +167,20 @@ func (p *gotdClientPool) DeleteContacts(ctx context.Context, accountID uuid.UUID
 		return err
 	}
 
-	return client.Run(ctx, func(tctx context.Context) error {
-		api := tg.NewClient(client)
-		var inputs []tg.InputUserClass
-		for _, uID := range userIDs {
-			inputs = append(inputs, &tg.InputUser{UserID: uID})
-		}
-		_, err := api.ContactsDeleteContacts(tctx, inputs)
-		return err
-	})
+	api := tg.NewClient(client)
+	var inputs []tg.InputUserClass
+	for _, uID := range userIDs {
+		inputs = append(inputs, &tg.InputUser{UserID: uID})
+	}
+	_, err = api.ContactsDeleteContacts(ctx, inputs)
+	return err
 }
 
 func (p *gotdClientPool) Send(ctx context.Context, accountID uuid.UUID, phone string, text string) (int, error) {
 	start := time.Now()
 	if p.isMockMode() {
 		if phone == "404" {
-			return 0, errors.New("PEER_FLOOD")
+			return 0, domain.ErrPeerFlood
 		}
 		return 50, nil
 	}
@@ -164,33 +190,31 @@ func (p *gotdClientPool) Send(ctx context.Context, accountID uuid.UUID, phone st
 		return 0, err
 	}
 
-	err = client.Run(ctx, func(tctx context.Context) error {
-		api := tg.NewClient(client)
-		sender := message.NewSender(api)
-		
-		resolv := peer.DefaultResolver(api)
-		peerEntity, err := resolv.ResolvePhone(tctx, phone)
-		if err != nil {
-			return domain.ErrUserNotFound
+	api := tg.NewClient(client)
+	sender := message.NewSender(api)
+
+	resolv := peer.DefaultResolver(api)
+	peerEntity, err := resolv.ResolvePhone(ctx, phone)
+	if err != nil {
+		return 0, domain.ErrUserNotFound
+	}
+
+	_, err = sender.To(peerEntity).Text(ctx, text)
+
+	if err != nil {
+		if tgerr.Is(err, "PEER_FLOOD") {
+			return 0, domain.ErrPeerFlood
 		}
-
-		_, err = sender.To(peerEntity).Text(tctx, text)
-		
-		// Map MTProto exceptions to standard rules
-		if err != nil {
-			errStr := err.Error()
-			if errStr == "PEER_FLOOD" || errStr == "AUTH_KEY_UNREGISTERED" {
-				return errors.New(errStr) // Handled dynamically by usecase
-			}
+		if tgerr.Is(err, "AUTH_KEY_UNREGISTERED") {
+			p.StopClient(accountID)
+			return 0, domain.ErrAuthUnregistered
 		}
+		return 0, err
+	}
 
-		return err
-	})
-
-	return int(time.Since(start).Milliseconds()), err
+	return int(time.Since(start).Milliseconds()), nil
 }
 
-// gotdDBSessionStorage connects gotd's session blob semantics to our PostgreSQL adapter interface.
 type gotdDBSessionStorage struct {
 	accountID uuid.UUID
 	repo      port.AccountRepository
@@ -200,7 +224,7 @@ func (s *gotdDBSessionStorage) LoadSession(ctx context.Context) ([]byte, error) 
 	session, err := s.repo.GetSession(ctx, s.accountID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			return nil, nil // gotd standard specifies nil byte array unblocks clean init
+			return nil, nil // unblocks clear gotd instantiation defaults
 		}
 		return nil, err
 	}

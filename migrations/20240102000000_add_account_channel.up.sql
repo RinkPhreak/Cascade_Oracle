@@ -1,0 +1,1 @@
+ALTER TABLE accounts ADD COLUMN channel VARCHAR(20) NOT NULL DEFAULT 'telegram';
