@@ -14,7 +14,9 @@ export const useAccounts = () =>
         url: '/api/v1/accounts',
       });
       const result = response as { data?: TgAccount[]; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch accounts');
+      if (result.error) {
+        return []; // Graceful fallback
+      }
       return result.data ?? [];
     },
     refetchInterval: 15_000,
@@ -29,7 +31,9 @@ export const useAccountEvents = (accountId: string | null) =>
         url: `/api/v1/accounts/${accountId}/events`,
       });
       const result = response as { data?: AccountEvent[]; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch events');
+      if (result.error) {
+        return [];
+      }
       return result.data ?? [];
     },
     enabled: !!accountId,

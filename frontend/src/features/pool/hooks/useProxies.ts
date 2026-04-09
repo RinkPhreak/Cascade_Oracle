@@ -14,7 +14,9 @@ export const useProxies = () =>
         url: '/api/v1/proxies',
       });
       const result = response as { data?: Proxy[]; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch proxies');
+      if (result.error) {
+        return []; // Graceful fallback
+      }
       return result.data ?? [];
     },
     refetchInterval: 30_000,

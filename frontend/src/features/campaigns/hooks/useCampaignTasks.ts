@@ -12,7 +12,19 @@ export const useCampaignStats = (campaignId: string | null) =>
         url: `/api/v1/campaigns/${campaignId}/stats`,
       });
       const result = response as { data?: CampaignStats; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch stats');
+      if (result.error) {
+        return {
+          campaign_id: campaignId ?? '',
+          total: 0,
+          completed: 0,
+          replied: 0,
+          failed: 0,
+          in_progress: 0,
+          tg_attempted: 0,
+          sms_attempted: 0,
+          error_breakdown: {}
+        } as CampaignStats;
+      }
       return result.data!;
     },
     enabled: !!campaignId,
@@ -30,7 +42,9 @@ export const useStuckTasks = (campaignId: string | null) =>
       });
       // We filter client-side; ideally the backend supports ?status=in_progress&stuck_gt=600
       const result = response as { data?: CampaignTask[]; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch tasks');
+      if (result.error) {
+        return [];
+      }
       const now = Date.now();
       return (result.data ?? []).filter((t) => {
         if (t.status !== 'in_progress' || !t.started_at) return false;

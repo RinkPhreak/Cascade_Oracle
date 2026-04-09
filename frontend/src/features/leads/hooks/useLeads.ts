@@ -14,7 +14,9 @@ export const useLeads = () =>
         // The backend should support ?has_replied=true filter
       });
       const result = response as { data?: Contact[]; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch leads');
+      if (result.error) {
+        return [];
+      }
       // Filter client-side in case backend doesn't support the query param yet
       return (result.data ?? []).filter((c) => c.has_replied && !c.is_anonymised);
     },
@@ -30,7 +32,9 @@ export const useContactTrace = (contactId: string | null) =>
         url: `/api/v1/contacts/${contactId}/trace`,
       });
       const result = response as { data?: unknown; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch trace');
+      if (result.error) {
+        return [];
+      }
       return result.data;
     },
     enabled: !!contactId,

@@ -3,7 +3,7 @@ import { useAuthStore } from '../features/auth/store';
 
 // We set API client options to point to the vite proxy
 client.setConfig({
-  baseUrl: '/api',
+  baseUrl: '',
 });
 
 // Add interceptor to append JWT to all requests
@@ -15,4 +15,3 @@ client.interceptors.request.use((request) => {
   return request;
 });
 export { client };
-

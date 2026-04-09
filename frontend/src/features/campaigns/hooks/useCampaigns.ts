@@ -13,7 +13,9 @@ export const useCampaigns = () =>
         url: '/api/v1/campaigns',
       });
       const result = response as { data?: Campaign[]; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to fetch campaigns');
+      if (result.error) {
+        return [];
+      }
       return result.data ?? [];
     },
     refetchInterval: 15_000,

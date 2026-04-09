@@ -1,4 +1,4 @@
-
+import { useState } from 'react';
 
 interface StepGeneralProps {
   name: string;
@@ -14,9 +14,9 @@ export const StepGeneral = ({
   onScheduledAtChange,
 }: StepGeneralProps) => {
   // Compute minimum datetime (now) for the picker
-  const minDateTime = new Date(Date.now() + 60_000)
-    .toISOString()
-    .slice(0, 16);
+  const [minDateTime] = useState(() =>
+    new Date(Date.now() + 60_000).toISOString().slice(0, 16)
+  );
 
   return (
     <div className="flex flex-col gap-5">
