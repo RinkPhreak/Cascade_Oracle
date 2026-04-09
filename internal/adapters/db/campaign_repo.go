@@ -152,12 +152,9 @@ func (r *gormCampaignRepo) UpdateCampaignContactStatus(ctx context.Context, camp
 		Update("status", string(status)).Error
 }
 
-func (r *gormCampaignRepo) ListCampaigns(ctx context.Context, status string) ([]*domain.Campaign, error) {
+func (r *gormCampaignRepo) ListCampaigns(ctx context.Context) ([]*domain.Campaign, error) {
 	var models []campaignModel
 	query := ExtractDB(ctx, r.db)
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
 	if err := query.Find(&models).Error; err != nil {
 		return nil, err
 	}
@@ -183,4 +180,8 @@ func (r *gormCampaignRepo) ListCampaignContacts(ctx context.Context, campaignID 
 		})
 	}
 	return res, nil
+}
+
+func (r *gormCampaignRepo) FetchExecutable(ctx context.Context, t time.Time) ([]*domain.Campaign, error) {
+	return nil, nil // Placeholder
 }

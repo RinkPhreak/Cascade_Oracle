@@ -35,15 +35,15 @@ func (c *redisCache) Exists(ctx context.Context, key string) (bool, error) {
 	return count > 0, err
 }
 
-func (c *redisCache) Increment(ctx context.Context, key string) (int, error) {
+func (c *redisCache) Increment(ctx context.Context, key string) (int64, error) {
 	res, err := c.client.Incr(ctx, key).Result()
-	return int(res), err
+	return res, err
 }
 
 func (c *redisCache) Expire(ctx context.Context, key string, ttl time.Duration) error {
 	return c.client.Expire(ctx, key, ttl).Err()
 }
 
-func (c *redisCache) Delete(ctx context.Context, key string) error {
+func (c *redisCache) Del(ctx context.Context, key string) error {
 	return c.client.Del(ctx, key).Err()
 }

@@ -35,7 +35,7 @@ func (e *asynqEnqueuer) EnqueueWaterfall(ctx context.Context, payload domain.Wat
 		opts = append(opts, asynq.ProcessAt(*processAt))
 	}
 
-	opts = append(opts, asynq.Queue("default"), asynq.MaxRetry(5))
+	opts = append(opts, asynq.Queue("default"), asynq.MaxRetry(25))
 
 	_, err = e.client.EnqueueContext(ctx, task, opts...)
 	return err

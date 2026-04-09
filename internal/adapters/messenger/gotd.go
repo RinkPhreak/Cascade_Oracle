@@ -102,12 +102,12 @@ func (p *gotdClientPool) isMockMode() bool {
 	return os.Getenv("MESSENGER_MODE") == "mock"
 }
 
-func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID, phones []string) ([]domain.TelegramUser, error) {
+func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID, phones []string) ([]port.ImportedContact, error) {
 	if p.isMockMode() {
-		res := make([]domain.TelegramUser, 0)
+		res := make([]port.ImportedContact, 0)
 		for _, ph := range phones {
 			if ph != "" && ph != "404" {
-				res = append(res, domain.TelegramUser{
+				res = append(res, port.ImportedContact{
 					UserID: int64(len(ph) * 1000),
 					Phone:  ph,
 				})
@@ -145,18 +145,22 @@ func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID
 		return nil, err
 	}
 
-	var results []domain.TelegramUser
+	var results []port.ImportedContact
 	for _, user := range imported.Users {
 		u, ok := user.(*tg.User)
 		if ok && !u.Deleted {
-			results = append(results, domain.TelegramUser{
+			results = append(results, port.ImportedContact{
 				UserID:   u.ID,
-				Username: u.Username,
 				Phone:    u.Phone,
 			})
 		}
 	}
 	return results, nil
+}
+
+func (p *gotdClientPool) Ping(ctx context.Context, accountID uuid.UUID) error {
+	_, err := p.getClient(ctx, accountID)
+	return err
 }
 
 func (p *gotdClientPool) DeleteContacts(ctx context.Context, accountID uuid.UUID, userIDs []int64) error {

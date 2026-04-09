@@ -28,6 +28,10 @@ func (c *Campaign) IsScheduledForFuture(now time.Time) bool {
 	return c.ScheduledAt != nil && c.ScheduledAt.After(now)
 }
 
+func (c *Campaign) IsExecutable(now time.Time) bool {
+	return c.Status == CampaignStatusDraft || c.Status == CampaignStatusPaused
+}
+
 func (c *Campaign) TransitionStatus(status CampaignStatus) {
 	c.Status = status
 	c.UpdatedAt = time.Now()

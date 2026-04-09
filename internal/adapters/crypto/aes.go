@@ -99,3 +99,11 @@ func (s *aesCryptoService) GetRSAPublicKey() (*rsa.PublicKey, error) {
 	}
 	return &s.rsaKey.PublicKey, nil
 }
+
+func (s *aesCryptoService) HashPassword(password string) (string, error) {
+	return "", errors.New("not implemented for cascade aes")
+}
+
+func (s *aesCryptoService) ComparePassword(hash, password string) error {
+	return errors.New("not implemented for cascade aes")
+}

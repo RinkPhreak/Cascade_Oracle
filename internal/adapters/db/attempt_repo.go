@@ -43,6 +43,18 @@ func NewAttemptRepository(db *gorm.DB) port.AttemptRepository {
 	return &gormAttemptRepo{db: db}
 }
 
+// GetByID proxy implement
+func (r *gormAttemptRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.SendAttempt, error) {
+	var m sendAttemptModel
+	if err := ExtractDB(ctx, r.db).Where("id = ?", id).First(&m).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return toDomainAttempt(&m), nil
+}
+
 // -- Mappings --
 
 func fromDomainAttempt(a *domain.SendAttempt) *sendAttemptModel {
@@ -59,14 +71,14 @@ func fromDomainAttempt(a *domain.SendAttempt) *sendAttemptModel {
 		CreatedAt:      a.CreatedAt,
 		UpdatedAt:      a.UpdatedAt,
 	}
-	if a.ErrorCode != "" {
-		m.ErrorCode = &a.ErrorCode
+	if a.ErrorCode != nil {
+		m.ErrorCode = a.ErrorCode
 	}
-	if a.ErrorMessage != "" {
-		m.ErrorMessage = &a.ErrorMessage
+	if a.ErrorMessage != nil {
+		m.ErrorMessage = a.ErrorMessage
 	}
-	if a.LatencyMs > 0 {
-		m.LatencyMs = &a.LatencyMs
+	if a.LatencyMs != nil {
+		m.LatencyMs = a.LatencyMs
 	}
 	return m
 }
@@ -80,19 +92,19 @@ func toDomainAttempt(m *sendAttemptModel) *domain.SendAttempt {
 		AccountID:      m.AccountID,
 		ProxyID:        m.ProxyID,
 		Channel:        m.Channel,
-		Status:         domain.AttemptStatus(m.Status),
+		Status:         domain.DeliveryStatus(m.Status),
 		AttemptNumber:  m.AttemptNumber,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,
 	}
 	if m.ErrorCode != nil {
-		a.ErrorCode = *m.ErrorCode
+		a.ErrorCode = m.ErrorCode
 	}
 	if m.ErrorMessage != nil {
-		a.ErrorMessage = *m.ErrorMessage
+		a.ErrorMessage = m.ErrorMessage
 	}
 	if m.LatencyMs != nil {
-		a.LatencyMs = *m.LatencyMs
+		a.LatencyMs = m.LatencyMs
 	}
 	return a
 }

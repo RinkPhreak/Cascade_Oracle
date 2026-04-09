@@ -19,7 +19,7 @@ type contactModel struct {
 	PhoneHash  string
 	Phone      string
 	Name       string
-	ExtraData  string
+	ExtraData  *string
 	HasReplied bool
 	RepliedAt  *time.Time
 	DeletedAt  *time.Time
