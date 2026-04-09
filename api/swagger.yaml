@@ -1,0 +1,287 @@
+definitions:
+  dto.AnonymiseResponse:
+    properties:
+      contact_id:
+        type: string
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.AuthLoginRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+    required:
+    - login
+    - password
+    type: object
+  dto.AuthTokenResponse:
+    properties:
+      access_token:
+        type: string
+    type: object
+  dto.BreakGlassRequest:
+    properties:
+      password:
+        type: string
+      reason:
+        type: string
+    required:
+    - password
+    type: object
+  dto.CampaignResponse:
+    description: Summary view of a created or fetched campaign.
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      scheduled_at:
+        type: string
+      status:
+        type: string
+    type: object
+  dto.CreateCampaignRequest:
+    description: Payload containing name, optional schedule, and mandatory templates
+      for telegram/sms channels.
+    properties:
+      name:
+        type: string
+      scheduled_at:
+        type: string
+      templates:
+        additionalProperties:
+          type: string
+        type: object
+    required:
+    - name
+    - templates
+    type: object
+  dto.ErrorResponse:
+    description: Contains strict business error code and human-readable message.
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AuthLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AuthTokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Operator Login
+      tags:
+      - auth
+  /api/v1/campaigns:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign params
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateCampaignRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.CampaignResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Create a new campaign
+      tags:
+      - campaigns
+  /api/v1/campaigns/{id}/import:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Campaign UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: CSV File
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Import contacts via CSV
+      tags:
+      - campaigns
+  /api/v1/campaigns/{id}/pause:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Re-auth required
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BreakGlassRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Campaign Paused
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Emergency Campaign Pause
+      tags:
+      - campaigns
+  /api/v1/campaigns/{id}/start:
+    post:
+      parameters:
+      - description: Campaign UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "202":
+          description: Accepted for processing
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      summary: Enqueue campaign for processing
+      tags:
+      - campaigns
+  /api/v1/contacts/{id}/anonymise:
+    post:
+      parameters:
+      - description: Contact UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.AnonymiseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Right to be Forgotten (152-FZ / GDPR)
+      tags:
+      - contacts
+  /api/v1/system/halt:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Reason and Re-auth
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BreakGlassRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: System Halted
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Emergency Break-Glass Halt
+      tags:
+      - system
+  /api/v1/system/resume:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Re-auth required
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BreakGlassRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: System Resumed
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/dto.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Emergency Break-Glass Resume
+      tags:
+      - system
+swagger: "2.0"

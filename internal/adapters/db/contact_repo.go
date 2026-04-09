@@ -183,3 +183,7 @@ func (r *gormContactRepo) FetchAnonymizeCandidates(ctx context.Context, retentio
 	}
 	return res, nil
 }
+
+func (r *gormContactRepo) DeletePreference(ctx context.Context, contactID uuid.UUID) error {
+	return ExtractDB(ctx, r.db).Where("contact_id = ?", contactID).Delete(&contactChannelPreferenceModel{}).Error
+}

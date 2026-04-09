@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/hibiken/asynq"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
@@ -22,9 +23,9 @@ import (
 	"cascade/internal/adapters/crypto"
 	"cascade/internal/adapters/db"
 	"cascade/internal/adapters/messenger"
+	"cascade/internal/application/usecase"
 	deliveryhttp "cascade/internal/delivery/http"
 	"cascade/internal/delivery/worker"
-	"cascade/internal/application/usecase"
 	"cascade/internal/infrastructure/observability"
 )
 
@@ -39,12 +40,26 @@ func main() {
 	appIDStr := os.Getenv("TG_APP_ID")
 	appHash := os.Getenv("TG_APP_HASH")
 	secretKey := os.Getenv("APP_ENCRYPTION_KEY")
+	adminLogin := os.Getenv("ADMIN_LOGIN")
+	adminPasswdHash := os.Getenv("ADMIN_PASSWORD_HASH")
+	jwtPubKeyStr := os.Getenv("JWT_PUBLIC_KEY")
+	jwtPrivKeyStr := os.Getenv("JWT_PRIVATE_KEY")
 
 	if len(secretKey) != 32 {
 		log.Fatalf("Fatal: APP_ENCRYPTION_KEY must be exactly 32 bytes (got %d)", len(secretKey))
 	}
 
 	appID, _ := strconv.Atoi(appIDStr)
+
+	// Parse keys using jwt
+	jwtPrivKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(jwtPrivKeyStr))
+	if err != nil {
+		slog.Warn("could not parse JWT_PRIVATE_KEY", "error", err)
+	}
+	jwtPubKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(jwtPubKeyStr))
+	if err != nil {
+		slog.Warn("could not parse JWT_PUBLIC_KEY", "error", err)
+	}
 
 	// 2. Database Connection
 	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -78,27 +93,29 @@ func main() {
 	enqueuer := asynqAdapter.NewAsynqEnqueuer(redisAddr)
 	tgPool := messenger.NewTelegramClientPool(accountRepo, appID, appHash)
 	
-	// Need a dummy SMS client to statisfy compilation given it wasn't strictly provided yet
-	// In production, this would be messenger.NewSMSClient(os.Getenv("SMSRU_API_ID"))
-	// Replaced explicit SMS with nil
-	
 	uow := db.NewUnitOfWork(gormDB)
 
 	// 6. Application UseCases
+	authUC := usecase.NewAuthUseCase(adminLogin, adminPasswdHash, jwtPrivKey)
+	contactUC := usecase.NewContactUseCase(contactRepo, uow, cryptoSvc)
 	campUC := usecase.NewCampaignUseCase(campaignRepo, contactRepo, enqueuer, uow, cryptoSvc)
 	waterfallUC := usecase.NewWaterfallUseCase(
 		campaignRepo, contactRepo, accountRepo, proxyRepo,
-		attemptRepo, tgPool, nil, // Replaced explicit SMS with nil, as integration depends on smsru impl
+		attemptRepo, tgPool, nil, // Replaced explicit SMS with nil
 		redisCache, enqueuer, cryptoSvc,
 	)
 
 	// 7. Delivery / Transport
 	fiberApp := fiber.New()
-	campaignHandler := deliveryhttp.NewCampaignHandler(campUC)
-	campaignHandler.MountRoutes(fiberApp)
+	
+	authHandler := deliveryhttp.NewAuthHandler(authUC)
+	campaignHandler := deliveryhttp.NewCampaignHandler(campUC, authUC)
+	systemHandler := deliveryhttp.NewSystemHandler(authUC, redisCache)
+	contactHandler := deliveryhttp.NewContactHandler(contactUC)
+
+	deliveryhttp.SetupRoutes(fiberApp, jwtPubKey, authHandler, campaignHandler, systemHandler, contactHandler)
 
 	asynqMux := worker.NewServerMux(waterfallUC)
-	
 	asynqSrv := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: redisAddr},
 		asynq.Config{

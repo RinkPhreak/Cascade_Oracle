@@ -13,10 +13,11 @@ import (
 
 type CampaignHandler struct {
 	campaignUC *usecase.CampaignUseCase
+	authUC     *usecase.AuthUseCase
 }
 
-func NewCampaignHandler(uc *usecase.CampaignUseCase) *CampaignHandler {
-	return &CampaignHandler{campaignUC: uc}
+func NewCampaignHandler(uc *usecase.CampaignUseCase, authUC *usecase.AuthUseCase) *CampaignHandler {
+	return &CampaignHandler{campaignUC: uc, authUC: authUC}
 }
 
 func (h *CampaignHandler) MountRoutes(router fiber.Router) {
@@ -122,4 +123,38 @@ func (h *CampaignHandler) Start(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusAccepted)
+}
+
+// Pause godoc
+// @Summary Emergency Campaign Pause
+// @Tags campaigns
+// @Accept json
+// @Produce json
+// @Param id path string true "Campaign UUID"
+// @Param request body dto.BreakGlassRequest true "Re-auth required"
+// @Success 200 "Campaign Paused"
+// @Failure 403 {object} dto.ErrorResponse
+// @Router /api/v1/campaigns/{id}/pause [post]
+// @Security Bearer
+func (h *CampaignHandler) Pause(c *fiber.Ctx) error {
+	var req dto.BreakGlassRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "invalid schema"})
+	}
+
+	if err := h.authUC.VerifyPassword(req.Password); err != nil {
+		return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{Code: "FORBIDDEN", Message: "invalid re-authentication password"})
+	}
+
+	idStr := c.Params("id")
+	campID, err := uuid.Parse(idStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "INVALID_ID", Message: "invalid uuid"})
+	}
+
+	if err := h.campaignUC.PauseCampaign(c.Context(), campID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+	
+	return c.SendStatus(fiber.StatusOK)
 }

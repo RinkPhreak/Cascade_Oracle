@@ -44,6 +44,7 @@ type ContactRepository interface {
 	SaveReply(ctx context.Context, reply *domain.ContactReply) error
 	SavePreference(ctx context.Context, pref *domain.ContactChannelPreference) error
 	GetPreference(ctx context.Context, contactID uuid.UUID) (string, error)
+	DeletePreference(ctx context.Context, contactID uuid.UUID) error
 
 	FetchAnonymizeCandidates(ctx context.Context, retentionThreshold time.Time) ([]*domain.Contact, error)
 }
