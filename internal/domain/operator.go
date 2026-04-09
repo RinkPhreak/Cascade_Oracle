@@ -8,6 +8,7 @@ import (
 
 type OperatorSession struct {
 	ID           uuid.UUID
+	Login        string
 	RefreshToken string
 	ExpiresAt    time.Time
 	RevokedAt    *time.Time
