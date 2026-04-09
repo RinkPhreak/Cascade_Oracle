@@ -70,7 +70,7 @@ export const CampaignWizard = ({ isOpen, onClose, onCreated }: CampaignWizardPro
 
       createCampaign.mutate({
         name: name.trim(),
-        scheduled_at: scheduledAt || undefined,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
         // Templates are required by the API, pass empty for now — user fills in step 3
         templates: templates,
       });

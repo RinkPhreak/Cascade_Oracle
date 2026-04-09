@@ -16,16 +16,20 @@ export const Modal = ({ isOpen, onClose, title, children, width = 'max-w-lg' }: 
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-
-    // Focus trap — focus first focusable element
+    // Focus trap — focus first focusable element ONLY when opening
     const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
     focusable?.[0]?.focus();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
 
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
