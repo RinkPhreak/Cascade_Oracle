@@ -6,7 +6,11 @@ type BreakGlassRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
+// SystemMetricsResponse строго совпадает с фронтенд-типом SystemMetrics
 type SystemMetricsResponse struct {
-	IsHalted bool   `json:"is_halted"`
-	Reason   string `json:"reason,omitempty"`
+	CascadeMemoryUsageRatio float64 `json:"cascade_memory_usage_ratio"`
+	ActiveTgAccounts        int     `json:"active_tg_accounts"`
+	TotalTgAccounts         int     `json:"total_tg_accounts"`
+	QueueDepth              int     `json:"queue_depth"`
+	SystemStatus            string  `json:"system_status"` // 'OPERATIONAL', 'DEGRADED', 'HALTED'
 }

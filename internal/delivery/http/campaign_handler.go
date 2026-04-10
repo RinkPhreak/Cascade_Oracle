@@ -141,9 +141,9 @@ func (h *CampaignHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "invalid json"})
 	}
 
-	// Skipping explicit go-validator setup for brevity, assuming standard structurally valid JSON
-	if req.Name == "" || len(req.Templates) == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "VALIDATION_ERROR", Message: "missing required fields"})
+	// Разрешаем создавать кампанию без шаблонов (они добавятся на Шаге 3)
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "VALIDATION_ERROR", Message: "missing required field: name"})
 	}
 
 	camp, err := h.campaignUC.CreateCampaign(c.Context(), req.Name, req.ScheduledAt, req.Templates)
@@ -254,6 +254,6 @@ func (h *CampaignHandler) Pause(c *fiber.Ctx) error {
 	if err := h.campaignUC.PauseCampaign(c.Context(), campID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
 	}
-	
+
 	return c.SendStatus(fiber.StatusOK)
 }

@@ -26,6 +26,7 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 ENV TZ=Europe/Moscow
 
 COPY --from=builder /app/cascade /app/cascade
+COPY --from=builder /app/migrations ./migrations
 
 # Since we use a monolithic entrypoint, we can control modes via args or env
 # Defaults to running the monolith (API + Workers)

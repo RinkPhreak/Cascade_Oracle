@@ -45,3 +45,31 @@ func (h *AccountHandler) List(c *fiber.Ctx) error {
 
 	return c.JSON(res)
 }
+
+// Register godoc
+// @Summary Register a new TG account
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Param request body dto.RegisterAccountRequest true "Phone"
+// @Success 201 {object} dto.AccountResponse
+// @Router /api/v1/accounts/register [post]
+// @Security Bearer
+func (h *AccountHandler) Register(c *fiber.Ctx) error {
+	var req dto.RegisterAccountRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "invalid schema"})
+	}
+
+	acc, err := h.accountUC.RegisterAccount(c.Context(), req.Phone)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.AccountResponse{
+		ID:        acc.ID.String(),
+		Phone:     acc.Phone,
+		Status:    string(acc.Status),
+		CreatedAt: acc.CreatedAt.Format("2006-01-02 15:04:05"),
+	})
+}

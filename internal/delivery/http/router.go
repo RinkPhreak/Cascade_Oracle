@@ -27,6 +27,7 @@ func SetupRoutes(app *fiber.App, pubKey *rsa.PublicKey, authH *AuthHandler, camp
 	// Accounts & Pool
 	accounts := protected.Group("/accounts")
 	accounts.Get("/", accH.List)
+	accounts.Post("/register", accH.Register)
 
 	proxies := protected.Group("/proxies")
 	proxies.Get("/", proxyH.List)

@@ -1,10 +1,7 @@
 package dto
 
 type RegisterAccountRequest struct {
-	Phone       string `json:"phone" validate:"required"`
-	Channel     string `json:"channel" validate:"required"`
-	ProxyID     string `json:"proxy_id,omitempty"`
-	Credentials string `json:"credentials,omitempty"`
+	Phone string `json:"phone" validate:"required"`
 }
 
 type AccountResponse struct {

@@ -7,7 +7,7 @@ import "time"
 type CreateCampaignRequest struct {
 	Name        string            `json:"name" validate:"required"`
 	ScheduledAt *time.Time        `json:"scheduled_at,omitempty"`
-	Templates   map[string]string `json:"templates" validate:"required"`
+	Templates   map[string]string `json:"templates"` // <--- Убрали validate:"required"
 }
 
 // CampaignResponse represents the serialized view of a Campaign entity.

@@ -2,13 +2,13 @@ package usecase
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"cascade/internal/application/port"
+	"cascade/internal/delivery/http/dto"
 	"cascade/internal/domain"
 )
 
@@ -76,20 +76,17 @@ func (u *AccountUseCase) ListProxies(ctx context.Context) ([]*domain.Proxy, erro
 	return u.proxyRepo.GetAll(ctx)
 }
 
-func (u *AccountUseCase) AddProxy(ctx context.Context, address string) (*domain.Proxy, error) {
-	// 1. Убираем случайные пробелы и переносы строк
-	cleanAddr := strings.TrimSpace(address)
-
-	// 2. Базовая валидация формата (IP:PORT или IP:PORT:USER:PASS)
-	parts := strings.Split(cleanAddr, ":")
-	if len(parts) != 2 && len(parts) != 4 {
-		return nil, errors.New("invalid proxy format, expected IP:PORT or IP:PORT:USER:PASS")
+func (u *AccountUseCase) AddProxy(ctx context.Context, req dto.CreateProxyRequest) (*domain.Proxy, error) {
+	// Build the address string internally
+	address := fmt.Sprintf("%s:%d", req.Host, req.Port)
+	if req.Username != "" {
+		address = fmt.Sprintf("%s:%d:%s:%s", req.Host, req.Port, req.Username, req.Password)
 	}
 
 	id, _ := uuid.NewV7()
 	proxy := &domain.Proxy{
 		ID:        id,
-		Address:   cleanAddr,
+		Address:   address,
 		Status:    domain.ProxyHealthy,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -98,6 +95,26 @@ func (u *AccountUseCase) AddProxy(ctx context.Context, address string) (*domain.
 	if err := u.proxyRepo.Create(ctx, proxy); err != nil {
 		return nil, err
 	}
-
 	return proxy, nil
+}
+
+func (u *AccountUseCase) RegisterAccount(ctx context.Context, phone string) (*domain.Account, error) {
+	id, _ := uuid.NewV7()
+	acc := &domain.Account{
+		ID:              id,
+		Phone:           phone,
+		Status:          domain.StateWarmingUp,
+		Channel:         "telegram",
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+
+	// 1. Save to database
+	if err := u.accountRepo.CreateAccount(ctx, acc); err != nil {
+		return nil, err
+	}
+
+	// 2. IMPORTANT: In production, trigger messenger (gotd) here.
+	// For integration fix, we just return the created account.
+	return acc, nil
 }

@@ -90,12 +90,7 @@ func main() {
 		log.Fatalf("failed to create migration driver: %v", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations",
-		"postgres", driver)
-	if err != nil {
-		log.Fatalf("failed to create migration instance: %v", err)
-	}
+	m, err := migrate.NewWithDatabaseInstance("file:///app/migrations", "postgres", driver)
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		log.Fatalf("failed to run migrations: %v", err)
@@ -113,8 +108,8 @@ func main() {
 	campaignRepo := db.NewCampaignRepository(gormDB)
 	contactRepo := db.NewContactRepository(gormDB)
 	attemptRepo := db.NewAttemptRepository(gormDB)
-	proxyRepo := db.NewProxyRepository(gormDB) 
-	
+	proxyRepo := db.NewProxyRepository(gormDB)
+
 	// 5. Infrastructure Adapters
 	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
 	redisCache := cache.NewRedisCache(redisClient)
@@ -127,7 +122,7 @@ func main() {
 
 	enqueuer := asynqAdapter.NewAsynqEnqueuer(redisAddr)
 	tgPool := messenger.NewTelegramClientPool(accountRepo, appID, appHash)
-	
+
 	uow := db.NewUnitOfWork(gormDB)
 
 	// 6. Application UseCases
@@ -143,7 +138,7 @@ func main() {
 
 	// 7. Delivery / Transport
 	fiberApp := fiber.New()
-	
+
 	authHandler := deliveryhttp.NewAuthHandler(authUC)
 	campaignHandler := deliveryhttp.NewCampaignHandler(campUC, authUC)
 	systemHandler := deliveryhttp.NewSystemHandler(authUC, redisCache)
@@ -203,7 +198,7 @@ func main() {
 		}
 		return nil
 	})
-	
+
 	g.Go(func() error {
 		<-gCtx.Done()
 		slog.Info("Gracefully shutting down Asynq multiplexer")

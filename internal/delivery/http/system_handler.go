@@ -39,7 +39,13 @@ func (h *SystemHandler) HaltSystem(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{Code: "FORBIDDEN", Message: "invalid re-authentication password"})
 	}
 
-	h.cache.Set(c.Context(), "cascade:system:halted", req.Reason, 876000*time.Hour)
+	// Идемпотентность: проверяем, не остановлена ли уже система
+	existingReason, err := h.cache.Get(c.Context(), "cascade:system:halted")
+	if err == nil && existingReason != "" {
+		return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{Code: "CONFLICT", Message: "System is already halted"})
+	}
+
+	h.cache.Set(c.Context(), "cascade:system:halted", req.Reason, 8760*time.Hour)
 	return c.SendStatus(fiber.StatusOK)
 }
 
@@ -63,6 +69,12 @@ func (h *SystemHandler) ResumeSystem(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(dto.ErrorResponse{Code: "FORBIDDEN", Message: "invalid re-authentication password"})
 	}
 
+	// Идемпотентность: проверяем, остановлена ли система вообще
+	existingReason, err := h.cache.Get(c.Context(), "cascade:system:halted")
+	if err != nil || existingReason == "" {
+		return c.Status(fiber.StatusConflict).JSON(dto.ErrorResponse{Code: "CONFLICT", Message: "System is already operational"})
+	}
+
 	h.cache.Del(c.Context(), "cascade:system:halted")
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -77,8 +89,17 @@ func (h *SystemHandler) GetMetrics(c *fiber.Ctx) error {
 	reason, err := h.cache.Get(c.Context(), "cascade:system:halted")
 	isHalted := err == nil && reason != ""
 
+	status := "OPERATIONAL"
+	if isHalted {
+		status = "HALTED"
+	}
+
+	// Возвращаем точную структуру, которую ждет фронтенд
 	return c.JSON(dto.SystemMetricsResponse{
-		IsHalted: isHalted,
-		Reason:   reason,
+		CascadeMemoryUsageRatio: 0.1, // Заглушка до подключения memory_monitor
+		ActiveTgAccounts:        0,   // Заглушка до интеграции счетчика БД
+		TotalTgAccounts:         0,   // Заглушка до интеграции счетчика БД
+		QueueDepth:              0,   // Заглушка до Asynq Inspector
+		SystemStatus:            status,
 	})
 }
