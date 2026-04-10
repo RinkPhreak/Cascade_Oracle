@@ -66,3 +66,19 @@ func (h *SystemHandler) ResumeSystem(c *fiber.Ctx) error {
 	h.cache.Del(c.Context(), "cascade:system:halted")
 	return c.SendStatus(fiber.StatusOK)
 }
+
+// GetMetrics godoc
+// @Summary Fetch system health and halt state
+// @Tags system
+// @Success 200 {object} dto.SystemMetricsResponse
+// @Router /api/v1/system/metrics [get]
+// @Security Bearer
+func (h *SystemHandler) GetMetrics(c *fiber.Ctx) error {
+	reason, err := h.cache.Get(c.Context(), "cascade:system:halted")
+	isHalted := err == nil && reason != ""
+
+	return c.JSON(dto.SystemMetricsResponse{
+		IsHalted: isHalted,
+		Reason:   reason,
+	})
+}

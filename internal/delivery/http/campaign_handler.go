@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -20,11 +21,109 @@ func NewCampaignHandler(uc *usecase.CampaignUseCase, authUC *usecase.AuthUseCase
 	return &CampaignHandler{campaignUC: uc, authUC: authUC}
 }
 
-func (h *CampaignHandler) MountRoutes(router fiber.Router) {
-	group := router.Group("/api/v1/campaigns")
-	group.Post("/", h.Create)
-	group.Post("/:id/import", h.ImportCSV)
-	group.Post("/:id/start", h.Start)
+// List godoc
+// @Summary List all campaigns
+// @Tags campaigns
+// @Success 200 {array} dto.CampaignResponse
+// @Router /api/v1/campaigns [get]
+// @Security Bearer
+func (h *CampaignHandler) List(c *fiber.Ctx) error {
+	campaigns, err := h.campaignUC.ListCampaigns(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: err.Error(),
+		})
+	}
+
+	var res []dto.CampaignResponse
+	for _, camp := range campaigns {
+		res = append(res, dto.CampaignResponse{
+			ID:          camp.ID.String(),
+			Name:        camp.Name,
+			Status:      string(camp.Status),
+			ScheduledAt: camp.ScheduledAt,
+			CreatedAt:   camp.CreatedAt,
+		})
+	}
+
+	return c.JSON(res)
+}
+
+// GetStats godoc
+// @Summary Fetch campaign statistics
+// @Tags campaigns
+// @Param id path string true "Campaign UUID"
+// @Param start_time query string false "Filter from (ISO8601)"
+// @Param end_time query string false "Filter to (ISO8601)"
+// @Success 200 {object} dto.CampaignStatsResponse
+// @Router /api/v1/campaigns/{id}/stats [get]
+// @Security Bearer
+func (h *CampaignHandler) GetStats(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	campID, err := uuid.Parse(idStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "INVALID_ID", Message: "invalid uuid"})
+	}
+
+	var start, end *time.Time
+	if s := c.Query("start_time"); s != "" {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			start = &t
+		}
+	}
+	if e := c.Query("end_time"); e != "" {
+		if t, err := time.Parse(time.RFC3339, e); err == nil {
+			end = &t
+		}
+	}
+
+	stats, err := h.campaignUC.GetCampaignStats(c.Context(), campID, start, end)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+
+	return c.JSON(dto.CampaignStatsResponse{
+		Total:          stats.Total,
+		Completed:      stats.Completed,
+		Replied:        stats.Replied,
+		Failed:         stats.Failed,
+		ErrorBreakdown: stats.ErrorBreakdown,
+	})
+}
+
+// GetTasks godoc
+// @Summary List in-progress delivery tasks
+// @Tags campaigns
+// @Param id path string true "Campaign UUID"
+// @Success 200 {array} dto.CampaignTaskResponse
+// @Router /api/v1/campaigns/{id}/tasks [get]
+// @Security Bearer
+func (h *CampaignHandler) GetTasks(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	campID, err := uuid.Parse(idStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "INVALID_ID", Message: "invalid uuid"})
+	}
+
+	tasks, err := h.campaignUC.GetCampaignTasks(c.Context(), campID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+
+	res := make([]dto.CampaignTaskResponse, 0)
+	for _, t := range tasks {
+		res = append(res, dto.CampaignTaskResponse{
+			ID:            t.ID.String(),
+			ContactID:     t.ContactID.String(),
+			Channel:       t.Channel,
+			Status:        string(t.Status),
+			AttemptNumber: t.AttemptNumber,
+			UpdatedAt:     t.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return c.JSON(res)
 }
 
 // Create godoc

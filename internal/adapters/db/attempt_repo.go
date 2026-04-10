@@ -148,3 +148,35 @@ func (r *gormAttemptRepo) GetStuck(ctx context.Context, olderThan time.Time) ([]
 	}
 	return res, nil
 }
+func (r *gormAttemptRepo) GetStuckAttempts(ctx context.Context, campaignID uuid.UUID) ([]*domain.SendAttempt, error) {
+	var models []sendAttemptModel
+	err := ExtractDB(ctx, r.db).
+		Where("campaign_id = ? AND status = ?", campaignID, domain.AttemptStatusInProgress).
+		Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	var res []*domain.SendAttempt
+	for _, m := range models {
+		mCopy := m
+		res = append(res, toDomainAttempt(&mCopy))
+	}
+	return res, nil
+}
+
+func (r *gormAttemptRepo) GetTrace(ctx context.Context, contactID uuid.UUID) ([]*domain.SendAttempt, error) {
+	var models []sendAttemptModel
+	err := ExtractDB(ctx, r.db).
+		Where("contact_id = ?", contactID).
+		Order("created_at asc").
+		Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	var res []*domain.SendAttempt
+	for _, m := range models {
+		mCopy := m
+		res = append(res, toDomainAttempt(&mCopy))
+	}
+	return res, nil
+}

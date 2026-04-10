@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/gofiber/fiber/v2"
@@ -51,14 +52,21 @@ func main() {
 
 	appID, _ := strconv.Atoi(appIDStr)
 
-	// Parse keys using jwt
-	jwtPrivKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(jwtPrivKeyStr))
-	if err != nil {
-		slog.Warn("could not parse JWT_PRIVATE_KEY", "error", err)
+	// Clean up keys from .env if they contain literal string quotes or encoded newlines
+	cleanKey := func(k string) string {
+		k = strings.Trim(k, `"`)
+		k = strings.Trim(k, `'`)
+		return strings.ReplaceAll(k, "\\n", "\n")
 	}
-	jwtPubKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(jwtPubKeyStr))
+
+	// Parse keys using jwt
+	jwtPrivKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(cleanKey(jwtPrivKeyStr)))
 	if err != nil {
-		slog.Warn("could not parse JWT_PUBLIC_KEY", "error", err)
+		log.Fatalf("Fatal: could not parse JWT_PRIVATE_KEY: %v", err)
+	}
+	jwtPubKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(cleanKey(jwtPubKeyStr)))
+	if err != nil {
+		log.Fatalf("Fatal: could not parse JWT_PUBLIC_KEY: %v", err)
 	}
 
 	// 2. Database Connection
@@ -97,8 +105,9 @@ func main() {
 
 	// 6. Application UseCases
 	authUC := usecase.NewAuthUseCase(adminLogin, adminPasswdHash, jwtPrivKey)
-	contactUC := usecase.NewContactUseCase(contactRepo, uow, cryptoSvc)
-	campUC := usecase.NewCampaignUseCase(campaignRepo, contactRepo, enqueuer, uow, cryptoSvc)
+	contactUC := usecase.NewContactUseCase(contactRepo, attemptRepo, uow, cryptoSvc)
+	campUC := usecase.NewCampaignUseCase(campaignRepo, contactRepo, attemptRepo, enqueuer, uow, cryptoSvc)
+	accountUC := usecase.NewAccountUseCase(accountRepo, proxyRepo)
 	waterfallUC := usecase.NewWaterfallUseCase(
 		campaignRepo, contactRepo, accountRepo, proxyRepo,
 		attemptRepo, tgPool, nil, // Replaced explicit SMS with nil
@@ -112,8 +121,10 @@ func main() {
 	campaignHandler := deliveryhttp.NewCampaignHandler(campUC, authUC)
 	systemHandler := deliveryhttp.NewSystemHandler(authUC, redisCache)
 	contactHandler := deliveryhttp.NewContactHandler(contactUC)
+	accountHandler := deliveryhttp.NewAccountHandler(accountUC)
+	proxyHandler := deliveryhttp.NewProxyHandler(accountUC)
 
-	deliveryhttp.SetupRoutes(fiberApp, jwtPubKey, authHandler, campaignHandler, systemHandler, contactHandler)
+	deliveryhttp.SetupRoutes(fiberApp, jwtPubKey, authHandler, campaignHandler, systemHandler, contactHandler, accountHandler, proxyHandler)
 
 	asynqMux := worker.NewServerMux(waterfallUC)
 	asynqSrv := asynq.NewServer(

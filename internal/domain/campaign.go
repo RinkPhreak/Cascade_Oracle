@@ -65,3 +65,11 @@ type CampaignContact struct {
 func (cc *CampaignContact) TransitionStatus(status CampaignContactStatus) {
 	cc.Status = status
 }
+
+type CampaignStats struct {
+	Total          int
+	Completed      int
+	Replied        int
+	Failed         int
+	ErrorBreakdown map[string]int // e.g. "USER_NOT_FOUND" -> 5
+}

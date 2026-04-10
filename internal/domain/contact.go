@@ -44,3 +44,12 @@ type ContactReply struct {
 	RepliedAt  time.Time
 	CreatedAt  time.Time
 }
+
+type RepliedLead struct {
+	ID         uuid.UUID
+	Phone      string
+	Name       string
+	Message    string
+	Channel    string
+	RepliedAt  time.Time
+}

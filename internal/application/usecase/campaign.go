@@ -16,15 +16,17 @@ import (
 type CampaignUseCase struct {
 	campaignRepo port.CampaignRepository
 	contactRepo  port.ContactRepository
+	attemptRepo  port.AttemptRepository
 	enqueuer     port.TaskEnqueuer
 	uow          port.UnitOfWork
 	crypto       port.CryptoService
 }
 
-func NewCampaignUseCase(cr port.CampaignRepository, contactRepo port.ContactRepository, eq port.TaskEnqueuer, uow port.UnitOfWork, crypto port.CryptoService) *CampaignUseCase {
+func NewCampaignUseCase(cr port.CampaignRepository, contactRepo port.ContactRepository, ar port.AttemptRepository, eq port.TaskEnqueuer, uow port.UnitOfWork, crypto port.CryptoService) *CampaignUseCase {
 	return &CampaignUseCase{
 		campaignRepo: cr,
 		contactRepo:  contactRepo,
+		attemptRepo:  ar,
 		enqueuer:     eq,
 		uow:          uow,
 		crypto:       crypto,
@@ -178,4 +180,16 @@ func (u *CampaignUseCase) PauseCampaign(ctx context.Context, campaignID uuid.UUI
 	}
 
 	return u.enqueuer.CancelCampaignTasks(ctx, campaign.ID)
+}
+
+func (u *CampaignUseCase) ListCampaigns(ctx context.Context) ([]*domain.Campaign, error) {
+	return u.campaignRepo.ListCampaigns(ctx)
+}
+
+func (u *CampaignUseCase) GetCampaignStats(ctx context.Context, campaignID uuid.UUID, start, end *time.Time) (*domain.CampaignStats, error) {
+	return u.campaignRepo.GetStats(ctx, campaignID, start, end)
+}
+
+func (u *CampaignUseCase) GetCampaignTasks(ctx context.Context, campaignID uuid.UUID) ([]*domain.SendAttempt, error) {
+	return u.attemptRepo.GetStuckAttempts(ctx, campaignID)
 }

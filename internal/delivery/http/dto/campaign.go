@@ -20,9 +20,24 @@ type CampaignResponse struct {
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
-// ErrorResponse represents a standardized API error shape.
-// @Description Contains strict business error code and human-readable message.
 type ErrorResponse struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+type CampaignStatsResponse struct {
+	Total          int            `json:"total"`
+	Completed      int            `json:"completed"`
+	Replied        int            `json:"replied"`
+	Failed         int            `json:"failed"`
+	ErrorBreakdown map[string]int `json:"error_breakdown"`
+}
+
+type CampaignTaskResponse struct {
+	ID            string `json:"id"`
+	ContactID     string `json:"contact_id"`
+	Channel       string `json:"channel"`
+	Status        string `json:"status"`
+	AttemptNumber int    `json:"attempt_number"`
+	UpdatedAt     string `json:"updated_at"`
 }

@@ -213,3 +213,16 @@ func (r *gormAccountRepo) GetSession(ctx context.Context, accountID uuid.UUID) (
 		UpdatedAt:   m.UpdatedAt,
 	}, nil
 }
+
+func (r *gormAccountRepo) GetAll(ctx context.Context) ([]*domain.Account, error) {
+	var models []accountModel
+	if err := ExtractDB(ctx, r.db).Find(&models).Error; err != nil {
+		return nil, err
+	}
+	var res []*domain.Account
+	for _, m := range models {
+		mCopy := m
+		res = append(res, toDomainAccount(&mCopy))
+	}
+	return res, nil
+}

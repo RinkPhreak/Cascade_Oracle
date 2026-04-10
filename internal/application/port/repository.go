@@ -23,6 +23,7 @@ type AccountRepository interface {
 
 	SaveSession(ctx context.Context, session *domain.Session) error
 	GetSession(ctx context.Context, accountID uuid.UUID) (*domain.Session, error)
+	GetAll(ctx context.Context) ([]*domain.Account, error)
 }
 
 // ProxyRepository isolates operations for network proxies.
@@ -47,6 +48,8 @@ type ContactRepository interface {
 	DeletePreference(ctx context.Context, contactID uuid.UUID) error
 
 	FetchAnonymizeCandidates(ctx context.Context, retentionThreshold time.Time) ([]*domain.Contact, error)
+	FindReplied(ctx context.Context) ([]*domain.Contact, error)
+	ListReplies(ctx context.Context) ([]*domain.ContactReply, error)
 }
 
 // CampaignRepository manages message flows and scheduled templates.
@@ -57,6 +60,7 @@ type CampaignRepository interface {
 	FetchExecutable(ctx context.Context, timeZero time.Time) ([]*domain.Campaign, error)
 	ListCampaigns(ctx context.Context) ([]*domain.Campaign, error)
 	ListCampaignContacts(ctx context.Context, campaignID uuid.UUID) ([]*domain.CampaignContact, error)
+	GetStats(ctx context.Context, campaignID uuid.UUID, start, end *time.Time) (*domain.CampaignStats, error)
 
 	GetTemplate(ctx context.Context, campaignID uuid.UUID, channel string) (*domain.MessageTemplate, error)
 	CreateTemplate(ctx context.Context, tpl *domain.MessageTemplate) error
@@ -70,6 +74,8 @@ type AttemptRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.SendAttempt, error)
 	GetByIdempotencyKey(ctx context.Context, key uuid.UUID) (*domain.SendAttempt, error)
 	GetStuck(ctx context.Context, limitTime time.Time) ([]*domain.SendAttempt, error)
+	GetStuckAttempts(ctx context.Context, campaignID uuid.UUID) ([]*domain.SendAttempt, error)
+	GetTrace(ctx context.Context, contactID uuid.UUID) ([]*domain.SendAttempt, error)
 	Update(ctx context.Context, attempt *domain.SendAttempt) error
 }
 

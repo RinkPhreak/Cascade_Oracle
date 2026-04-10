@@ -19,21 +19,58 @@ func NewProxyRepository(db *gorm.DB) port.ProxyRepository {
 }
 
 func (r *gormProxyRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Proxy, error) {
-	return &domain.Proxy{ID: id, Status: "active"}, nil
-}
-
-func (r *gormProxyRepo) Save(ctx context.Context, proxy *domain.Proxy) error {
-	return nil
+	var m proxyModel
+	if err := ExtractDB(ctx, r.db).First(&m, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &domain.Proxy{
+		ID:        m.ID,
+		Address:   m.Address,
+		Status:    domain.ProxyStatus(m.Status),
+		CreatedAt: m.CreatedAt,
+		UpdatedAt: m.UpdatedAt,
+	}, nil
 }
 
 func (r *gormProxyRepo) Create(ctx context.Context, proxy *domain.Proxy) error {
-	return nil
+	m := &proxyModel{
+		ID:        proxy.ID,
+		Address:   proxy.Address,
+		Status:    string(proxy.Status),
+		CreatedAt: proxy.CreatedAt,
+		UpdatedAt: proxy.UpdatedAt,
+	}
+	return ExtractDB(ctx, r.db).Create(m).Error
 }
 
 func (r *gormProxyRepo) GetAll(ctx context.Context) ([]*domain.Proxy, error) {
-	return nil, nil
+	var models []proxyModel
+	if err := ExtractDB(ctx, r.db).Find(&models).Error; err != nil {
+		return nil, err
+	}
+	var res []*domain.Proxy
+	for _, m := range models {
+		res = append(res, &domain.Proxy{
+			ID:        m.ID,
+			Address:   m.Address,
+			Status:    domain.ProxyStatus(m.Status),
+			CreatedAt: m.CreatedAt,
+			UpdatedAt: m.UpdatedAt,
+		})
+	}
+	return res, nil
 }
 
 func (r *gormProxyRepo) Update(ctx context.Context, proxy *domain.Proxy) error {
-	return nil
+	m := &proxyModel{
+		ID:        proxy.ID,
+		Address:   proxy.Address,
+		Status:    string(proxy.Status),
+		CreatedAt: proxy.CreatedAt,
+		UpdatedAt: proxy.UpdatedAt,
+	}
+	return ExtractDB(ctx, r.db).Save(m).Error
 }

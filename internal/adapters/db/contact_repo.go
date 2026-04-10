@@ -187,3 +187,38 @@ func (r *gormContactRepo) FetchAnonymizeCandidates(ctx context.Context, retentio
 func (r *gormContactRepo) DeletePreference(ctx context.Context, contactID uuid.UUID) error {
 	return ExtractDB(ctx, r.db).Where("contact_id = ?", contactID).Delete(&contactChannelPreferenceModel{}).Error
 }
+
+func (r *gormContactRepo) FindReplied(ctx context.Context) ([]*domain.Contact, error) {
+	var models []contactModel
+	err := ExtractDB(ctx, r.db).Where("has_replied = ?", true).Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	var res []*domain.Contact
+	for _, m := range models {
+		mCopy := m
+		res = append(res, toDomainContact(&mCopy))
+	}
+	return res, nil
+}
+
+func (r *gormContactRepo) ListReplies(ctx context.Context) ([]*domain.ContactReply, error) {
+	var models []contactReplyModel
+	err := ExtractDB(ctx, r.db).Order("replied_at desc").Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	var res []*domain.ContactReply
+	for _, m := range models {
+		res = append(res, &domain.ContactReply{
+			ID:        m.ID,
+			ContactID: m.ContactID,
+			AccountID: m.AccountID,
+			Channel:   m.Channel,
+			Message:   m.Message,
+			RepliedAt: m.RepliedAt,
+			CreatedAt: m.CreatedAt,
+		})
+	}
+	return res, nil
+}

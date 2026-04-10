@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"crypto/rsa"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -27,9 +29,11 @@ func RequireAuth(pubKey *rsa.PublicKey) fiber.Handler {
 				return nil, fiber.ErrUnauthorized
 			}
 			return pubKey, nil
-		})
+		}, jwt.WithLeeway(5*time.Minute))
 
 		if err != nil || !token.Valid {
+			log.Printf("🔥 JWT PARSE ERROR: %v\n", err)
+
 			return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
 				Code:    "UNAUTHORIZED",
 				Message: "token expired or invalid",

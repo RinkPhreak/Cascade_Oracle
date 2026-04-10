@@ -182,6 +182,79 @@ func (r *gormCampaignRepo) ListCampaignContacts(ctx context.Context, campaignID 
 	return res, nil
 }
 
+func (r *gormCampaignRepo) GetStats(ctx context.Context, id uuid.UUID, start, end *time.Time) (*domain.CampaignStats, error) {
+	db := ExtractDB(ctx, r.db)
+	stats := &domain.CampaignStats{
+		ErrorBreakdown: make(map[string]int),
+	}
+
+	// 1. Get CampaignContact status counts
+	type statusCount struct {
+		Status string
+		Count  int
+	}
+	var sCounts []statusCount
+	query := db.Model(&campaignContactModel{}).Where("campaign_id = ?", id).Select("status, count(*) as count").Group("status")
+	if err := query.Find(&sCounts).Error; err != nil {
+		return nil, err
+	}
+
+	for _, sc := range sCounts {
+		stats.Total += sc.Count
+		switch domain.CampaignContactStatus(sc.Status) {
+		case domain.CampaignContactCompleted:
+			stats.Completed += sc.Count
+		case domain.CampaignContactReplied:
+			stats.Replied += sc.Count
+			stats.Completed += sc.Count // Replied is also considered completed in many funnel views
+		case domain.CampaignContactFailed:
+			stats.Failed += sc.Count
+		}
+	}
+
+	// 2. Error Breakdown from send_attempts
+	type errorCount struct {
+		ErrorCode string
+		Count     int
+	}
+	var eCounts []errorCount
+	errQuery := db.Model(&sendAttemptModel{}).
+		Where("campaign_id = ? AND status = ?", id, "FAILED").
+		Select("error_code, count(*) as count").
+		Group("error_code")
+
+	if start != nil {
+		errQuery = errQuery.Where("updated_at >= ?", *start)
+	}
+	if end != nil {
+		errQuery = errQuery.Where("updated_at <= ?", *end)
+	}
+
+	if err := errQuery.Find(&eCounts).Error; err != nil {
+		// If sendAttemptModel is not visible here, I need to check where it's defined.
+		// It's in attempt_repo.go in the same package 'db', so it's visible.
+		return nil, err
+	}
+
+	for _, ec := range eCounts {
+		stats.ErrorBreakdown[ec.ErrorCode] = ec.Count
+	}
+
+	return stats, nil
+}
+
 func (r *gormCampaignRepo) FetchExecutable(ctx context.Context, t time.Time) ([]*domain.Campaign, error) {
-	return nil, nil // Placeholder
+	var models []campaignModel
+	err := ExtractDB(ctx, r.db).
+		Where("status = ? OR (status = ? AND scheduled_at <= ?)", domain.CampaignStatusActive, domain.CampaignStatusDraft, t).
+		Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	var res []*domain.Campaign
+	for _, m := range models {
+		mCopy := m
+		res = append(res, toDomainCampaign(&mCopy))
+	}
+	return res, nil
 }

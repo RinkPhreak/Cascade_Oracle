@@ -65,3 +65,26 @@ func (u *AccountUseCase) MarkProxyDegraded(ctx context.Context, proxyID uuid.UUI
 	proxy.MarkDegraded()
 	return u.proxyRepo.Update(ctx, proxy)
 }
+
+func (u *AccountUseCase) ListAccounts(ctx context.Context) ([]*domain.Account, error) {
+	return u.accountRepo.GetAll(ctx)
+}
+
+func (u *AccountUseCase) ListProxies(ctx context.Context) ([]*domain.Proxy, error) {
+	return u.proxyRepo.GetAll(ctx)
+}
+
+func (u *AccountUseCase) AddProxy(ctx context.Context, address string) (*domain.Proxy, error) {
+	id, _ := uuid.NewV7()
+	proxy := &domain.Proxy{
+		ID:        id,
+		Address:   address,
+		Status:    domain.ProxyHealthy,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	if err := u.proxyRepo.Create(ctx, proxy); err != nil {
+		return nil, err
+	}
+	return proxy, nil
+}
