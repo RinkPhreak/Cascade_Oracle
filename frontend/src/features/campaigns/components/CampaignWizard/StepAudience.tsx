@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import Papa from 'papaparse';
 
 export interface ParsedContact {
   phone: string;
@@ -12,37 +13,44 @@ interface StepAudienceProps {
   onFileChange: (file: File | null, parsed: ParsedContact[]) => void;
 }
 
-/** Parse CSV strictly expecting columns: phone, name, extra_data (JSON or plain). */
+/** Parse CSV using PapaParse expecting columns: phone, name, extra_data (JSON or plain). */
 function parseCsv(text: string): ParsedContact[] {
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  if (lines.length < 2) return [];
+  const parsed = Papa.parse(text, {
+    header: true,
+    skipEmptyLines: true,
+  });
 
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-  const phoneIdx = headers.indexOf('phone');
-  const nameIdx = headers.indexOf('name');
-  const extraIdx = headers.indexOf('extra_data');
-
-  if (phoneIdx === -1 || nameIdx === -1) return [];
+  if (!parsed.data || parsed.data.length === 0) return [];
 
   const results: ParsedContact[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',');
-    const phone = cols[phoneIdx]?.trim();
-    const name = cols[nameIdx]?.trim() ?? '';
+
+  for (const row of parsed.data as Record<string, string>[]) {
+    // Normalize keys to lowercase for robust matching
+    const normalizedRow: Record<string, string> = {};
+    for (const key in row) {
+      if (Object.prototype.hasOwnProperty.call(row, key)) {
+        normalizedRow[key.trim().toLowerCase()] = row[key];
+      }
+    }
+
+    const phone = normalizedRow['phone']?.trim();
     if (!phone) continue;
 
+    const name = normalizedRow['name']?.trim() ?? '';
+    const rawExtra = normalizedRow['extra_data']?.trim() ?? '';
+
     let extra_data: Record<string, string> = {};
-    if (extraIdx !== -1 && cols[extraIdx]) {
-      const rawExtra = cols.slice(extraIdx).join(',').trim();
+    if (rawExtra) {
       try {
         extra_data = JSON.parse(rawExtra);
       } catch {
-        // Treat as plain string
-        extra_data = { value: rawExtra };
+        extra_data = { value: rawExtra }; // Fallback to plain string mapping
       }
     }
+
     results.push({ phone, name, extra_data });
   }
+
   return results;
 }
 
@@ -103,13 +111,12 @@ export const StepAudience = ({ file, parsedContacts, onFileChange }: StepAudienc
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3
-          cursor-pointer transition-all ${
-          dragOver
+          cursor-pointer transition-all ${dragOver
             ? 'border-accent-cyan bg-accent-cyan/5'
             : file
-            ? 'border-green-500/50 bg-green-500/5'
-            : 'border-neutral-700 hover:border-neutral-500 hover:bg-neutral-900/50'
-        }`}
+              ? 'border-green-500/50 bg-green-500/5'
+              : 'border-neutral-700 hover:border-neutral-500 hover:bg-neutral-900/50'
+          }`}
       >
         <input
           ref={fileInputRef}
@@ -170,7 +177,7 @@ export const StepAudience = ({ file, parsedContacts, onFileChange }: StepAudienc
                 </tr>
               </thead>
               <tbody>
-                {parsedContacts.slice(0, 50).map((c, i) => (
+                {parsedContacts.slice(0, 5).map((c, i) => (
                   <tr key={i} className="border-t border-neutral-800">
                     <td className="px-3 py-1.5 font-mono text-neutral-300">{c.phone}</td>
                     <td className="px-3 py-1.5 text-neutral-300">{c.name || <span className="text-neutral-600">—</span>}</td>
@@ -181,10 +188,10 @@ export const StepAudience = ({ file, parsedContacts, onFileChange }: StepAudienc
                     </td>
                   </tr>
                 ))}
-                {parsedContacts.length > 50 && (
+                {parsedContacts.length > 5 && (
                   <tr>
                     <td colSpan={3} className="px-3 py-2 text-center text-neutral-600 italic">
-                      … и ещё {parsedContacts.length - 50} строк
+                      … и ещё {parsedContacts.length - 5} строк
                     </td>
                   </tr>
                 )}
