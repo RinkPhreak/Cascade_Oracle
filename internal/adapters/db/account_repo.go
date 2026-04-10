@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"cascade/internal/application/port"
 	"cascade/internal/domain"
@@ -15,7 +16,10 @@ import (
 
 type proxyModel struct {
 	ID        uuid.UUID `gorm:"primaryKey;type:uuid"`
-	Address   string
+	Host      string
+	Port      int
+	Username  string
+	Password  string
 	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -28,7 +32,7 @@ type accountModel struct {
 	Phone           string
 	Channel         string
 	ProxyID         *uuid.UUID `gorm:"type:uuid"`
-	State           string
+	Status          string
 	Credentials     string
 	DailyCheckCount int
 	DailySendCount  int
@@ -82,7 +86,7 @@ func toDomainAccount(am *accountModel) *domain.Account {
 		Phone:           am.Phone,
 		Channel:         am.Channel,
 		ProxyID:         pID,
-		Status:          domain.AccountState(am.State),
+		Status:          domain.AccountState(am.Status),
 		Credentials:     am.Credentials,
 		DailyCheckCount: am.DailyCheckCount,
 		DailySendCount:  am.DailySendCount,
@@ -98,7 +102,7 @@ func fromDomainAccount(a *domain.Account) *accountModel {
 		Phone:           a.Phone,
 		Channel:         a.Channel,
 		ProxyID:         nil,
-		State:           string(a.Status),
+		Status:          string(a.Status),
 		Credentials:     a.Credentials,
 		DailyCheckCount: a.DailyCheckCount,
 		DailySendCount:  a.DailySendCount,
@@ -116,7 +120,19 @@ func fromDomainAccount(a *domain.Account) *accountModel {
 
 func (r *gormAccountRepo) CreateAccount(ctx context.Context, account *domain.Account) error {
 	m := fromDomainAccount(account)
-	return ExtractDB(ctx, r.db).Create(m).Error
+	return ExtractDB(ctx, r.db).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "phone"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"proxy_id", "status", "credentials", "updated_at",
+		}),
+	}).Create(m).Error
+}
+
+func (r *gormAccountRepo) DeleteAccount(ctx context.Context, id uuid.UUID) error {
+	return ExtractDB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
+		// Cascade delete is handled by DB FKs, but we still use GORM session
+		return tx.Delete(&accountModel{}, "id = ?", id).Error
+	})
 }
 
 func (r *gormAccountRepo) GetAccountByID(ctx context.Context, id uuid.UUID) (*domain.Account, error) {
@@ -152,7 +168,7 @@ func (r *gormAccountRepo) GetLeastBusyActiveAccount(ctx context.Context, channel
 	err := ExtractDB(ctx, r.db).
 		Where("channel = ?", channel).
 		Where("created_at < ?", time.Now().Add(-48*time.Hour)).
-		Where("state = ? OR state = ?", domain.StateActive, domain.StateWarmingUp).
+		Where("status = ? OR status = ?", domain.StateActive, domain.StateWarmingUp).
 		Where("cooldown_until IS NULL OR cooldown_until <= ?", time.Now()).
 		Order("daily_send_count asc, daily_check_count asc").
 		First(&m).Error
@@ -169,7 +185,7 @@ func (r *gormAccountRepo) GetLeastBusyActiveAccount(ctx context.Context, channel
 func (r *gormAccountRepo) CountActiveAccounts(ctx context.Context) (int, error) {
 	var count int64
 	err := ExtractDB(ctx, r.db).Model(&accountModel{}).
-		Where("state = ?", domain.StateActive).Count(&count).Error
+		Where("status = ?", domain.StateActive).Count(&count).Error
 	return int(count), err
 }
 

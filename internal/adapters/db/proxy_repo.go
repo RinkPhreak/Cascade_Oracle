@@ -28,7 +28,10 @@ func (r *gormProxyRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Prox
 	}
 	return &domain.Proxy{
 		ID:        m.ID,
-		Address:   m.Address,
+		Host:      m.Host,
+		Port:      m.Port,
+		Username:  m.Username,
+		Password:  m.Password,
 		Status:    domain.ProxyStatus(m.Status),
 		CreatedAt: m.CreatedAt,
 		UpdatedAt: m.UpdatedAt,
@@ -38,7 +41,10 @@ func (r *gormProxyRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Prox
 func (r *gormProxyRepo) Create(ctx context.Context, proxy *domain.Proxy) error {
 	m := &proxyModel{
 		ID:        proxy.ID,
-		Address:   proxy.Address,
+		Host:      proxy.Host,
+		Port:      proxy.Port,
+		Username:  proxy.Username,
+		Password:  proxy.Password,
 		Status:    string(proxy.Status),
 		CreatedAt: proxy.CreatedAt,
 		UpdatedAt: proxy.UpdatedAt,
@@ -55,7 +61,10 @@ func (r *gormProxyRepo) GetAll(ctx context.Context) ([]*domain.Proxy, error) {
 	for _, m := range models {
 		res = append(res, &domain.Proxy{
 			ID:        m.ID,
-			Address:   m.Address,
+			Host:      m.Host,
+			Port:      m.Port,
+			Username:  m.Username,
+			Password:  m.Password,
 			Status:    domain.ProxyStatus(m.Status),
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
@@ -67,7 +76,10 @@ func (r *gormProxyRepo) GetAll(ctx context.Context) ([]*domain.Proxy, error) {
 func (r *gormProxyRepo) Update(ctx context.Context, proxy *domain.Proxy) error {
 	m := &proxyModel{
 		ID:        proxy.ID,
-		Address:   proxy.Address,
+		Host:      proxy.Host,
+		Port:      proxy.Port,
+		Username:  proxy.Username,
+		Password:  proxy.Password,
 		Status:    string(proxy.Status),
 		CreatedAt: proxy.CreatedAt,
 		UpdatedAt: proxy.UpdatedAt,

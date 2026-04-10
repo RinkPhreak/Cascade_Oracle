@@ -257,3 +257,16 @@ func (h *CampaignHandler) Pause(c *fiber.Ctx) error {
 
 	return c.SendStatus(fiber.StatusOK)
 }
+
+func (h *CampaignHandler) Delete(c *fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "invalid uuid"})
+	}
+
+	if err := h.campaignUC.DeleteCampaign(c.Context(), id); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}

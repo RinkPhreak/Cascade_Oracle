@@ -28,6 +28,8 @@ func SetupRoutes(app *fiber.App, pubKey *rsa.PublicKey, authH *AuthHandler, camp
 	accounts := protected.Group("/accounts")
 	accounts.Get("/", accH.List)
 	accounts.Post("/register", accH.Register)
+	accounts.Post("/import", accH.Import)
+	accounts.Delete("/:id", accH.Delete)
 
 	proxies := protected.Group("/proxies")
 	proxies.Get("/", proxyH.List)
@@ -40,6 +42,7 @@ func SetupRoutes(app *fiber.App, pubKey *rsa.PublicKey, authH *AuthHandler, camp
 	camps.Post("/:id/import", campH.ImportCSV)
 	camps.Post("/:id/start", campH.Start)
 	camps.Post("/:id/pause", campH.Pause)
+	camps.Delete("/:id", campH.Delete)
 	camps.Get("/:id/stats", campH.GetStats)
 	camps.Get("/:id/tasks", campH.GetTasks)
 

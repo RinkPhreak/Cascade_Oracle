@@ -186,6 +186,12 @@ func (u *CampaignUseCase) ListCampaigns(ctx context.Context) ([]*domain.Campaign
 	return u.campaignRepo.ListCampaigns(ctx)
 }
 
+func (u *CampaignUseCase) DeleteCampaign(ctx context.Context, id uuid.UUID) error {
+	// Cancel any active tasks first
+	_ = u.enqueuer.CancelCampaignTasks(ctx, id)
+	return u.campaignRepo.Delete(ctx, id)
+}
+
 func (u *CampaignUseCase) GetCampaignStats(ctx context.Context, campaignID uuid.UUID, start, end *time.Time) (*domain.CampaignStats, error) {
 	return u.campaignRepo.GetStats(ctx, campaignID, start, end)
 }

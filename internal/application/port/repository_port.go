@@ -24,6 +24,7 @@ type AccountRepository interface {
 	SaveSession(ctx context.Context, session *domain.Session) error
 	GetSession(ctx context.Context, accountID uuid.UUID) (*domain.Session, error)
 	GetAll(ctx context.Context) ([]*domain.Account, error)
+	DeleteAccount(ctx context.Context, id uuid.UUID) error
 }
 
 // ProxyRepository isolates operations for network proxies.
@@ -59,6 +60,7 @@ type CampaignRepository interface {
 	Update(ctx context.Context, campaign *domain.Campaign) error
 	FetchExecutable(ctx context.Context, timeZero time.Time) ([]*domain.Campaign, error)
 	ListCampaigns(ctx context.Context) ([]*domain.Campaign, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 	ListCampaignContacts(ctx context.Context, campaignID uuid.UUID) ([]*domain.CampaignContact, error)
 	GetStats(ctx context.Context, campaignID uuid.UUID, start, end *time.Time) (*domain.CampaignStats, error)
 

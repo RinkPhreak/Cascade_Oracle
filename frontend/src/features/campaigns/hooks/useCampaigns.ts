@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Campaign } from '../../../api/extended-types';
 import { client } from '../../../api/client';
+import { toast } from '../../../shared/hooks/useToast';
 
 export const CAMPAIGNS_QUERY_KEY = ['campaigns'] as const;
 
@@ -20,3 +21,22 @@ export const useCampaigns = () =>
     },
     refetchInterval: 15_000,
   });
+
+/** Delete a campaign and its associated data. */
+export const useDeleteCampaign = () => {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      const response = await client.delete<void, unknown>({
+        url: `/api/v1/campaigns/${id}`,
+      });
+      const result = response as { error?: { message?: string } };
+      if (result.error) throw new Error(result.error.message ?? 'Failed to delete campaign');
+    },
+    onSuccess: () => {
+      toast.success('Кампания удалена');
+      qc.invalidateQueries({ queryKey: CAMPAIGNS_QUERY_KEY });
+    },
+    onError: (err) => toast.error(err.message),
+  });
+};

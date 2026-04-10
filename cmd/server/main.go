@@ -121,7 +121,7 @@ func main() {
 	}
 
 	enqueuer := asynqAdapter.NewAsynqEnqueuer(redisAddr)
-	tgPool := messenger.NewTelegramClientPool(accountRepo, appID, appHash)
+	tgPool := messenger.NewTelegramClientPool(accountRepo, proxyRepo, appID, appHash)
 
 	uow := db.NewUnitOfWork(gormDB)
 
@@ -129,7 +129,7 @@ func main() {
 	authUC := usecase.NewAuthUseCase(adminLogin, adminPasswdHash, jwtPrivKey)
 	contactUC := usecase.NewContactUseCase(contactRepo, attemptRepo, uow, cryptoSvc)
 	campUC := usecase.NewCampaignUseCase(campaignRepo, contactRepo, attemptRepo, enqueuer, uow, cryptoSvc)
-	accountUC := usecase.NewAccountUseCase(accountRepo, proxyRepo)
+	accountUC := usecase.NewAccountUseCase(accountRepo, proxyRepo, tgPool)
 	waterfallUC := usecase.NewWaterfallUseCase(
 		campaignRepo, contactRepo, accountRepo, proxyRepo,
 		attemptRepo, tgPool, nil, // Replaced explicit SMS with nil

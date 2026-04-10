@@ -2,17 +2,22 @@ package messenger
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
+	"golang.org/x/net/proxy"
 
 	"cascade/internal/application/port"
 	"cascade/internal/domain"
@@ -22,20 +27,27 @@ type gotdClientPool struct {
 	accountRepo port.AccountRepository
 	appID       int
 	appHash     string
+	proxyRepo   port.ProxyRepository
 
 	mu      sync.RWMutex
 	clients map[uuid.UUID]*telegram.Client
 	cancels map[uuid.UUID]context.CancelFunc
 }
 
-func NewTelegramClientPool(repo port.AccountRepository, appID int, appHash string) port.TelegramClient {
+func NewTelegramClientPool(repo port.AccountRepository, proxyRepo port.ProxyRepository, appID int, appHash string) port.TelegramClient {
 	return &gotdClientPool{
 		accountRepo: repo,
+		proxyRepo:   proxyRepo,
 		appID:       appID,
 		appHash:     appHash,
 		clients:     make(map[uuid.UUID]*telegram.Client),
 		cancels:     make(map[uuid.UUID]context.CancelFunc),
 	}
+}
+
+func (p *gotdClientPool) Init(ctx context.Context, accountID uuid.UUID) error {
+	_, err := p.getClient(ctx, accountID)
+	return err
 }
 
 func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*telegram.Client, error) {
@@ -65,9 +77,44 @@ func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*t
 		repo:      p.accountRepo,
 	}
 
-	client = telegram.NewClient(p.appID, p.appHash, telegram.Options{
+	opts := telegram.Options{
 		SessionStorage: sessionStorage,
-	})
+	}
+
+	// 1. Setup Proxy if available
+	if acc.ProxyID != uuid.Nil {
+		prx, err := p.proxyRepo.GetByID(ctx, acc.ProxyID)
+		if err == nil {
+			dialer, err := proxy.SOCKS5("tcp", fmt.Sprintf("%s:%d", prx.Host, prx.Port), &proxy.Auth{
+				User:     prx.Username,
+				Password: prx.Password,
+			}, proxy.Direct)
+			if err == nil {
+				contextDialer := dialer.(proxy.ContextDialer)
+				opts.Resolver = dcs.Plain(dcs.PlainOptions{
+					Dial: contextDialer.DialContext,
+				})
+			}
+		}
+	}
+
+	// 2. Setup Device Config from account credentials if JSON
+	if acc.Credentials != "" && strings.HasPrefix(acc.Credentials, "{") {
+		var meta struct {
+			AppVersion    string `json:"app_version"`
+			DeviceModel   string `json:"device_model"`
+			SystemVersion string `json:"system_version"`
+		}
+		if err := json.Unmarshal([]byte(acc.Credentials), &meta); err == nil {
+			opts.Device = telegram.DeviceConfig{
+				DeviceModel:   meta.DeviceModel,
+				SystemVersion: meta.SystemVersion,
+				AppVersion:    meta.AppVersion,
+			}
+		}
+	}
+
+	client = telegram.NewClient(p.appID, p.appHash, opts)
 
 	runCtx, cancel := context.WithCancel(context.Background())
 
@@ -161,6 +208,33 @@ func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID
 func (p *gotdClientPool) Ping(ctx context.Context, accountID uuid.UUID) error {
 	_, err := p.getClient(ctx, accountID)
 	return err
+}
+
+func (p *gotdClientPool) VerifySession(ctx context.Context, accountID uuid.UUID) (string, error) {
+	if p.isMockMode() {
+		return "+79991234567", nil
+	}
+
+	client, err := p.getClient(ctx, accountID)
+	if err != nil {
+		return "", err
+	}
+
+	api := tg.NewClient(client)
+	self, err := api.UsersGetFullUser(ctx, &tg.InputUserSelf{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get self info: %w", err)
+	}
+
+	// self is already *tg.UsersUserFull, no need for type assertion.
+	for _, u := range self.Users {
+		user, ok := u.(*tg.User)
+		if ok && user.Self {
+			return user.Phone, nil
+		}
+	}
+
+	return "", fmt.Errorf("self user not found in response")
 }
 
 func (p *gotdClientPool) DeleteContacts(ctx context.Context, accountID uuid.UUID, userIDs []int64) error {

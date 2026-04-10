@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TgAccount, AccountEvent, TgAccountSession } from '../../../api/extended-types';
+import type { TgAccount, AccountEvent } from '../../../api/extended-types';
 import { client } from '../../../api/client';
 import { toast } from '../../../shared/hooks/useToast';
 
@@ -39,59 +39,49 @@ export const useAccountEvents = (accountId: string | null) =>
     enabled: !!accountId,
   });
 
-/** Initiate a new TG account registration session — returns QR/pairing info. */
-export const useInitAccountSession = () => {
-  return useMutation<TgAccountSession, Error>({
-    mutationFn: async () => {
-      const response = await client.post<TgAccountSession, unknown>({
-        url: '/api/v1/accounts/register',
-        body: {},
-        headers: { 'Content-Type': 'application/json' },
+/** Import a TG account using session files and proxy. */
+export const useImportAccount = () => {
+  const qc = useQueryClient();
+  return useMutation<TgAccount, Error, FormData>({
+    mutationFn: async (formData) => {
+      // client.post doesn't handle FormData neatly with current config, so we use native fetch via client.base?
+      // Actually, I'll see if I can use client.post with custom headers.
+      // But FormData usually shouldn't have 'Content-Type': 'application/json'
+      
+      const response = await fetch('/api/v1/accounts/import', {
+        method: 'POST',
+        body: formData,
+        // No Content-Type header let browser set it with boundary
       });
-      const result = response as { data?: TgAccountSession; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to init session');
-      return result.data!;
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ message: 'Import failed' }));
+        throw new Error(errData.message || response.statusText);
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Аккаунт успешно импортирован!');
+      qc.invalidateQueries({ queryKey: ACCOUNTS_QUERY_KEY });
     },
     onError: (err) => toast.error(err.message),
   });
 };
 
-/** Poll a registration session status (QR scan / code auth). */
-export const useSessionStatus = (sessionId: string | null) =>
-  useQuery<TgAccountSession>({
-    queryKey: ['pool', 'session', sessionId],
-    queryFn: async () => {
-      const response = await client.get<TgAccountSession, unknown>({
-        url: `/api/v1/accounts/register/${sessionId}`,
-      });
-      const result = response as { data?: TgAccountSession; error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Failed to poll session');
-      return result.data!;
-    },
-    enabled: !!sessionId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      // Stop polling once finalized
-      if (status === 'AUTHENTICATED' || status === 'FAILED') return false;
-      return 3_000;
-    },
-  });
-
-/** Submit the pairing code to complete authentication. */
-export const useSubmitPairingCode = () => {
+/** Delete a TG account from the pool. */
+export const useDeleteAccount = () => {
   const qc = useQueryClient();
-  return useMutation<void, Error, { sessionId: string; code: string }>({
-    mutationFn: async ({ sessionId, code }) => {
-      const response = await client.post<void, unknown>({
-        url: `/api/v1/accounts/register/${sessionId}/confirm`,
-        body: { code },
-        headers: { 'Content-Type': 'application/json' },
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      const response = await client.delete<void, unknown>({
+        url: `/api/v1/accounts/${id}`,
       });
       const result = response as { error?: { message?: string } };
-      if (result.error) throw new Error(result.error.message ?? 'Invalid pairing code');
+      if (result.error) throw new Error(result.error.message ?? 'Failed to delete account');
     },
     onSuccess: () => {
-      toast.success('Аккаунт успешно добавлен в пул!');
+      toast.success('Аккаунт удален');
       qc.invalidateQueries({ queryKey: ACCOUNTS_QUERY_KEY });
     },
     onError: (err) => toast.error(err.message),

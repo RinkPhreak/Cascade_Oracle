@@ -33,7 +33,9 @@ func (h *ProxyHandler) List(c *fiber.Ctx) error {
 	for _, p := range proxies {
 		res = append(res, dto.ProxyResponse{
 			ID:        p.ID.String(),
-			Address:   p.Address,
+			Host:      p.Host,
+			Port:      p.Port,
+			Username:  p.Username,
 			Status:    string(p.Status),
 			CreatedAt: p.CreatedAt.Format("2006-01-02 15:04:05"),
 		})
@@ -64,7 +66,9 @@ func (h *ProxyHandler) Create(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(dto.ProxyResponse{
 		ID:        proxy.ID.String(),
-		Address:   proxy.Address,
+		Host:      proxy.Host,
+		Port:      proxy.Port,
+		Username:  proxy.Username,
 		Status:    string(proxy.Status),
 		CreatedAt: proxy.CreatedAt.Format("2006-01-02 15:04:05"),
 	})

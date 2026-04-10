@@ -166,6 +166,12 @@ func (r *gormCampaignRepo) ListCampaigns(ctx context.Context) ([]*domain.Campaig
 	return res, nil
 }
 
+func (r *gormCampaignRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	return ExtractDB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
+		return tx.Delete(&campaignModel{}, "id = ?", id).Error
+	})
+}
+
 func (r *gormCampaignRepo) ListCampaignContacts(ctx context.Context, campaignID uuid.UUID) ([]*domain.CampaignContact, error) {
 	var models []campaignContactModel
 	if err := ExtractDB(ctx, r.db).Where("campaign_id = ?", campaignID).Find(&models).Error; err != nil {

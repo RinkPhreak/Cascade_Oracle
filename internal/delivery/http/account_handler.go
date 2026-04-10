@@ -4,6 +4,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"cascade/internal/application/usecase"
 	"cascade/internal/delivery/http/dto"
+	"io"
+	"strconv"
+
+	"github.com/google/uuid"
 )
 
 type AccountHandler struct {
@@ -64,6 +68,61 @@ func (h *AccountHandler) Register(c *fiber.Ctx) error {
 	acc, err := h.accountUC.RegisterAccount(c.Context(), req.Phone)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.AccountResponse{
+		ID:        acc.ID.String(),
+		Phone:     acc.Phone,
+		Status:    string(acc.Status),
+		CreatedAt: acc.CreatedAt.Format("2006-01-02 15:04:05"),
+	})
+}
+
+func (h *AccountHandler) Delete(c *fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "invalid uuid"})
+	}
+
+	if err := h.accountUC.DeleteAccount(c.Context(), id); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *AccountHandler) Import(c *fiber.Ctx) error {
+	form, err := c.MultipartForm()
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "failed to parse multipart form"})
+	}
+
+	filesMap := make(map[string][]byte)
+	for _, files := range form.File {
+		for _, file := range files {
+			f, _ := file.Open()
+			data, _ := io.ReadAll(f)
+			filesMap[file.Filename] = data
+			f.Close()
+		}
+	}
+
+	proxyPort, _ := strconv.Atoi(c.FormValue("proxy_port"))
+	proxyReq := dto.CreateProxyRequest{
+		Host:     c.FormValue("proxy_host"),
+		Port:     proxyPort,
+		Username: c.FormValue("proxy_username"),
+		Password: c.FormValue("proxy_password"),
+	}
+
+	comment := c.FormValue("comment")
+
+	acc, err := h.accountUC.ImportAccount(c.Context(), filesMap, proxyReq, comment)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{
+			Code:    "IMPORT_FAILED",
+			Message: err.Error(),
+		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(dto.AccountResponse{

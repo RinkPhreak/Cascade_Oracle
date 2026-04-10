@@ -25,7 +25,10 @@ const (
 
 type Proxy struct {
 	ID        uuid.UUID
-	Address   string
+	Host      string
+	Port      int
+	Username  string
+	Password  string
 	Status    ProxyStatus
 	CreatedAt time.Time
 	UpdatedAt time.Time
