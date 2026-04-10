@@ -104,14 +104,21 @@ export interface Campaign {
 
 export interface CampaignStats {
   campaign_id: string;
-  total: number;
+  total_contacts: number;
   completed: number;
   replied: number;
   failed: number;
-  in_progress: number;
   tg_attempted: number;
   sms_attempted: number;
   error_breakdown: Record<string, number>;
+}
+
+export interface CampaignListItem {
+  id: string;
+  name: string;
+  status: 'draft' | 'running' | 'paused' | 'completed';
+  scheduled_at: string | null;
+  created_at: string;
 }
 
 // ─── Campaign Tasks ───────────────────────────────────────────────────────────
@@ -137,6 +144,14 @@ export interface CampaignTask {
   updated_at: string;
 }
 
+export interface StuckTask {
+  id: string;
+  contact_id: string;
+  status: string;
+  channel: string;
+  updated_at: string;
+}
+
 // ─── Contacts ─────────────────────────────────────────────────────────────────
 
 export interface Contact {
@@ -151,6 +166,12 @@ export interface Contact {
   reply_account_phone: string | null;
   is_anonymised: boolean;
   created_at: string;
+}
+
+export interface ContactCSVRow {
+  phone: string;
+  name?: string;
+  extra_data?: Record<string, string>;
 }
 
 export type ContactTraceStepStatus =

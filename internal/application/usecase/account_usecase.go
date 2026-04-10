@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -75,16 +77,27 @@ func (u *AccountUseCase) ListProxies(ctx context.Context) ([]*domain.Proxy, erro
 }
 
 func (u *AccountUseCase) AddProxy(ctx context.Context, address string) (*domain.Proxy, error) {
+	// 1. Убираем случайные пробелы и переносы строк
+	cleanAddr := strings.TrimSpace(address)
+
+	// 2. Базовая валидация формата (IP:PORT или IP:PORT:USER:PASS)
+	parts := strings.Split(cleanAddr, ":")
+	if len(parts) != 2 && len(parts) != 4 {
+		return nil, errors.New("invalid proxy format, expected IP:PORT or IP:PORT:USER:PASS")
+	}
+
 	id, _ := uuid.NewV7()
 	proxy := &domain.Proxy{
 		ID:        id,
-		Address:   address,
+		Address:   cleanAddr,
 		Status:    domain.ProxyHealthy,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+
 	if err := u.proxyRepo.Create(ctx, proxy); err != nil {
 		return nil, err
 	}
+
 	return proxy, nil
 }

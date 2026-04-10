@@ -19,6 +19,10 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	"github.com/golang-migrate/migrate/v4"
+	pgDriver "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+
 	asynqAdapter "cascade/internal/adapters/asynq"
 	"cascade/internal/adapters/cache"
 	"cascade/internal/adapters/crypto"
@@ -74,6 +78,29 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
+
+	// Run Database Migrations
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		log.Fatalf("failed to get sql.DB from gorm: %v", err)
+	}
+
+	driver, err := pgDriver.WithInstance(sqlDB, &pgDriver.Config{})
+	if err != nil {
+		log.Fatalf("failed to create migration driver: %v", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+	if err != nil {
+		log.Fatalf("failed to create migration instance: %v", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("failed to run migrations: %v", err)
+	}
+	slog.Info("Database migrations applied successfully")
 
 	// 3. Application Context & Orchestration
 	ctx, cancel := context.WithCancel(context.Background())
