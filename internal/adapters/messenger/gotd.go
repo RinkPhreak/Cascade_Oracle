@@ -45,6 +45,148 @@ func NewTelegramClientPool(repo port.AccountRepository, proxyRepo port.ProxyRepo
 	}
 }
 
+// GetAppID returns the default AppID for fallback when importing sessions without credentials in JSON.
+func (p *gotdClientPool) GetAppID() int {
+	return p.appID
+}
+
+// GetAppHash returns the default AppHash for fallback when importing sessions without credentials in JSON.
+func (p *gotdClientPool) GetAppHash() string {
+	return p.appHash
+}
+
+// getClientWithCustomCredentials creates a gotd client with custom API credentials and DC routing.
+// This is used during account import when the session was created with different API_ID than system defaults.
+func (p *gotdClientPool) getClientWithCustomCredentials(ctx context.Context, accountID uuid.UUID, appID int, appHash string, dcID int, dcAddr string) (*telegram.Client, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Check if client already exists
+	if client, exists := p.clients[accountID]; exists {
+		return client, nil
+	}
+
+	acc, err := p.accountRepo.GetAccountByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionStorage := &gotdDBSessionStorage{
+		accountID: accountID,
+		repo:      p.accountRepo,
+	}
+
+	opts := telegram.Options{
+		SessionStorage: sessionStorage,
+		AppID:          appID,
+		AppHash:        appHash,
+		DC:             dcID, // Force DC from session data - critical for AUTH_KEY_UNREGISTERED fix
+		DCList:         dcs.Prod(),
+	}
+
+	// 1. Setup Proxy — MANDATORY when ProxyID is set.
+	if acc.ProxyID != uuid.Nil {
+		prx, err := p.proxyRepo.GetByID(ctx, acc.ProxyID)
+		if err != nil {
+			return nil, fmt.Errorf("proxy %s lookup failed, refusing direct connect: %w", acc.ProxyID, err)
+		}
+		dialer, err := proxy.SOCKS5("tcp", fmt.Sprintf("%s:%d", prx.Host, prx.Port), &proxy.Auth{
+			User:     prx.Username,
+			Password: prx.Password,
+		}, proxy.Direct)
+		if err != nil {
+			return nil, fmt.Errorf("proxy SOCKS5 dial setup failed for %s:%d, refusing direct connect: %w", prx.Host, prx.Port, err)
+		}
+		contextDialer := dialer.(proxy.ContextDialer)
+
+		// Override resolver to use specific DC address from session if available
+		// This ensures we connect to the exact server the auth key was created for
+		if dcAddr != "" {
+			opts.Resolver = dcs.Plain(dcs.PlainOptions{
+				Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					// Replace addr with the one from the session for the matching DC
+					targetAddr := dcAddr + ":443"
+					return contextDialer.DialContext(ctx, network, targetAddr)
+				},
+			})
+		} else {
+			opts.Resolver = dcs.Plain(dcs.PlainOptions{
+				Dial: contextDialer.DialContext,
+			})
+		}
+	}
+
+	// 2. Setup Device Config from account credentials if JSON
+	if acc.Credentials != "" && strings.HasPrefix(acc.Credentials, "{") {
+		var meta struct {
+			AppVersion    string `json:"app_version"`
+			DeviceModel   string `json:"device_model"`
+			SystemVersion string `json:"system_version"`
+		}
+		if err := json.Unmarshal([]byte(acc.Credentials), &meta); err == nil {
+			opts.Device = telegram.DeviceConfig{
+				DeviceModel:   meta.DeviceModel,
+				SystemVersion: meta.SystemVersion,
+				AppVersion:    meta.AppVersion,
+			}
+		}
+	}
+
+	client := telegram.NewClient(appID, appHash, opts)
+
+	runCtx, cancel := context.WithCancel(context.Background())
+
+	// Block until the MTProto handshake completes.
+	ready := make(chan struct{})
+	startupErr := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				select {
+				case startupErr <- fmt.Errorf("gotd panic: %v", r):
+				default:
+				}
+			}
+		}()
+
+		err := client.Run(runCtx, func(ctx context.Context) error {
+			close(ready)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		select {
+		case startupErr <- err:
+		default:
+		}
+	}()
+
+	const startupTimeout = 15 * time.Second
+	timer := time.NewTimer(startupTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-ready:
+	case err := <-startupErr:
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("gotd client startup failed: %w", err)
+		}
+		return nil, fmt.Errorf("gotd client startup failed: Run exited prematurely")
+	case <-timer.C:
+		cancel()
+		return nil, fmt.Errorf("gotd client startup timed out after %s", startupTimeout)
+	case <-ctx.Done():
+		cancel()
+		return nil, fmt.Errorf("context cancelled during gotd startup: %w", ctx.Err())
+	}
+
+	p.clients[accountID] = client
+	p.cancels[accountID] = cancel
+
+	return client, nil
+}
+
 func (p *gotdClientPool) Init(ctx context.Context, accountID uuid.UUID) error {
 	_, err := p.getClient(ctx, accountID)
 	return err
@@ -243,8 +385,8 @@ func (p *gotdClientPool) ImportContacts(ctx context.Context, accountID uuid.UUID
 		u, ok := user.(*tg.User)
 		if ok && !u.Deleted {
 			results = append(results, port.ImportedContact{
-				UserID:   u.ID,
-				Phone:    u.Phone,
+				UserID: u.ID,
+				Phone:  u.Phone,
 			})
 		}
 	}
@@ -273,6 +415,34 @@ func (p *gotdClientPool) VerifySession(ctx context.Context, accountID uuid.UUID)
 	}
 
 	// self is already *tg.UsersUserFull, no need for type assertion.
+	for _, u := range self.Users {
+		user, ok := u.(*tg.User)
+		if ok && user.Self {
+			return user.Phone, nil
+		}
+	}
+
+	return "", fmt.Errorf("self user not found in response")
+}
+
+// VerifySessionWithCredentials verifies a session using custom API credentials and DC routing.
+// This is critical for sessions created with different API_ID than system defaults (e.g., Telegram Desktop app_id=2040).
+func (p *gotdClientPool) VerifySessionWithCredentials(ctx context.Context, accountID uuid.UUID, appID int, appHash string, dcID int, dcAddr string) (string, error) {
+	if p.isMockMode() {
+		return "+79991234567", nil
+	}
+
+	client, err := p.getClientWithCustomCredentials(ctx, accountID, appID, appHash, dcID, dcAddr)
+	if err != nil {
+		return "", err
+	}
+
+	api := tg.NewClient(client)
+	self, err := api.UsersGetFullUser(ctx, &tg.InputUserSelf{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get self info: %w", err)
+	}
+
 	for _, u := range self.Users {
 		user, ok := u.(*tg.User)
 		if ok && user.Self {

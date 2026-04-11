@@ -43,7 +43,7 @@ func (u *AuthUseCase) Login(ctx context.Context, login, password string) (string
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
 		Issuer:    "cascade-oracle",
 	})
-	
+
 	if u.jwtPrivateKey == nil {
 		return "", errors.New("jwt private key not perfectly initialized during launch")
 	}

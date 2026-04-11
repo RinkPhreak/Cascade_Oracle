@@ -29,7 +29,7 @@ func (u *OperatorAuthUseCase) CreateSession(ctx context.Context, login string, p
 
 	sessionID, _ := uuid.NewV7()
 	tokenUUID, _ := uuid.NewV7() // High-entropy verifiable refresh token
-	
+
 	session := &domain.OperatorSession{
 		ID:           sessionID,
 		RefreshToken: tokenUUID.String(),
@@ -50,7 +50,7 @@ func (u *OperatorAuthUseCase) ValidateSession(ctx context.Context, token string)
 		return nil, err
 	}
 	if !session.IsValid(time.Now()) {
-		return nil, domain.ErrNotFound 
+		return nil, domain.ErrNotFound
 	}
 	return session, nil
 }

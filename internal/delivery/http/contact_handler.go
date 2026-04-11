@@ -27,13 +27,13 @@ func NewContactHandler(uc *usecase.ContactUseCase) *ContactHandler {
 // @Security Bearer
 func (h *ContactHandler) List(c *fiber.Ctx) error {
 	hasReplied := c.Query("has_replied") == "true"
-	
+
 	if hasReplied {
 		leads, err := h.contactUC.ListReplied(c.Context())
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(dto.ErrorResponse{Code: "INTERNAL_ERROR", Message: err.Error()})
 		}
-		
+
 		res := make([]dto.LeadResponse, 0)
 		for _, l := range leads {
 			res = append(res, dto.LeadResponse{

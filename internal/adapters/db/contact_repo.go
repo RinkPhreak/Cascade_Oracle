@@ -29,13 +29,13 @@ type contactModel struct {
 func (contactModel) TableName() string { return "contacts" }
 
 type contactReplyModel struct {
-	ID         uuid.UUID `gorm:"primaryKey;type:uuid"`
-	ContactID  uuid.UUID `gorm:"type:uuid"`
-	AccountID  uuid.UUID `gorm:"type:uuid"`
-	Channel    string
-	Message    *string
-	RepliedAt  time.Time
-	CreatedAt  time.Time
+	ID        uuid.UUID `gorm:"primaryKey;type:uuid"`
+	ContactID uuid.UUID `gorm:"type:uuid"`
+	AccountID uuid.UUID `gorm:"type:uuid"`
+	Channel   string
+	Message   *string
+	RepliedAt time.Time
+	CreatedAt time.Time
 }
 
 func (contactReplyModel) TableName() string { return "contact_replies" }
@@ -163,7 +163,7 @@ func (r *gormContactRepo) GetPreference(ctx context.Context, contactID uuid.UUID
 	var pm contactChannelPreferenceModel
 	if err := ExtractDB(ctx, r.db).First(&pm, "contact_id = ?", contactID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return "", nil 
+			return "", nil
 		}
 		return "", err
 	}

@@ -38,12 +38,12 @@ func (c *Campaign) TransitionStatus(status CampaignStatus) {
 }
 
 type MessageTemplate struct {
-	ID        uuid.UUID
+	ID         uuid.UUID
 	CampaignID uuid.UUID
-	Channel   string // "telegram", "sms"
-	Content   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Channel    string // "telegram", "sms"
+	Content    string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type CampaignContactStatus string

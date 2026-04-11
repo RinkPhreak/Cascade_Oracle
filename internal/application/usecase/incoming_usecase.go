@@ -24,11 +24,11 @@ func NewIncomingMessageHandler(cr port.ContactRepository, crypto port.CryptoServ
 
 func (h *IncomingMessageHandler) HandleReply(ctx context.Context, accountID uuid.UUID, senderPhone string, messageText string, channel string) error {
 	hash := h.crypto.HashPhone(senderPhone)
-	
+
 	contact, err := h.contactRepo.GetByHash(ctx, hash)
 	if err != nil {
 		if err == domain.ErrNotFound {
-			// Unregistered sender inbound interaction logic bounds 
+			// Unregistered sender inbound interaction logic bounds
 			return nil
 		}
 		return err
