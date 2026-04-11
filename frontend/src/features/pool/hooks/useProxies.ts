@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Proxy, CreateProxyRequest, ReassignProxyRequest } from '../../../api/extended-types';
+import type { DtoProxy, DtoCreateProxyRequest, DtoReassignProxyRequest } from '../../../api/generated';
 import { client } from '../../../api/client';
 import { toast } from '../../../shared/hooks/useToast';
 
@@ -7,13 +7,13 @@ const PROXIES_QUERY_KEY = ['pool', 'proxies'] as const;
 
 /** Fetch all proxies in the pool. */
 export const useProxies = () =>
-  useQuery<Proxy[]>({
+  useQuery<DtoProxy[]>({
     queryKey: PROXIES_QUERY_KEY,
     queryFn: async () => {
-      const response = await client.get<Proxy[], unknown>({
+      const response = await client.get<DtoProxy[], unknown>({
         url: '/api/v1/proxies',
       });
-      const result = response as { data?: Proxy[]; error?: { message?: string } };
+      const result = response as { data?: DtoProxy[]; error?: { message?: string } };
       if (result.error) {
         return []; // Graceful fallback
       }
@@ -25,14 +25,14 @@ export const useProxies = () =>
 /** Add a new proxy to the pool. */
 export const useAddProxy = () => {
   const qc = useQueryClient();
-  return useMutation<Proxy, Error, CreateProxyRequest>({
+  return useMutation<DtoProxy, Error, DtoCreateProxyRequest>({
     mutationFn: async (body) => {
-      const response = await client.post<Proxy, unknown>({
+      const response = await client.post<DtoProxy, unknown>({
         url: '/api/v1/proxies',
         body,
         headers: { 'Content-Type': 'application/json' },
       });
-      const result = response as { data?: Proxy; error?: { message?: string } };
+      const result = response as { data?: DtoProxy; error?: { message?: string } };
       if (result.error) throw new Error(result.error.message ?? 'Failed to add proxy');
       return result.data!;
     },
@@ -66,7 +66,7 @@ export const useDeleteProxy = () => {
 /** Re-assign a proxy to a different account (sticky binding change). */
 export const useReassignProxy = () => {
   const qc = useQueryClient();
-  return useMutation<void, Error, { proxyId: string } & ReassignProxyRequest>({
+  return useMutation<void, Error, { proxyId: string } & DtoReassignProxyRequest>({
     mutationFn: async ({ proxyId, account_id, reason }) => {
       const response = await client.post<void, unknown>({
         url: `/api/v1/proxies/${proxyId}/reassign`,

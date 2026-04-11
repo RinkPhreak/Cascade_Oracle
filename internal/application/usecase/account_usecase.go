@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,16 +20,18 @@ import (
 )
 
 type AccountUseCase struct {
-	accountRepo port.AccountRepository
-	proxyRepo   port.ProxyRepository
-	tgClient    port.TelegramClient
+	accountRepo   port.AccountRepository
+	proxyRepo     port.ProxyRepository
+	tgClient      port.TelegramClient
+	sessionParser *SessionParser
 }
 
-func NewAccountUseCase(ar port.AccountRepository, pr port.ProxyRepository, tgc port.TelegramClient) *AccountUseCase {
+func NewAccountUseCase(ar port.AccountRepository, pr port.ProxyRepository, tgc port.TelegramClient, sp *SessionParser) *AccountUseCase {
 	return &AccountUseCase{
-		accountRepo: ar,
-		proxyRepo:   pr,
-		tgClient:    tgc,
+		accountRepo:   ar,
+		proxyRepo:     pr,
+		tgClient:      tgc,
+		sessionParser: sp,
 	}
 }
 
@@ -187,13 +188,7 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 	}
 
 	// 3. Parse Telethon Session
-	tmpPath, err := createTempSessionFile(sessionData)
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmpPath)
-
-	teleSession, err := parseTelethonSession(ctx, tmpPath)
+	teleSession, err := u.sessionParser.Parse(ctx, sessionData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse telethon session: %w", err)
 	}
@@ -229,11 +224,13 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 		return nil, fmt.Errorf("failed to marshal gotd session: %w", err)
 	}
 
-	// 7. Create Account Record (UPSERT)
+	// 7. Create Account Record in DB FIRST (status = warming_up)
+	// BLOCKER 1 FIX: The old code called SaveSession and VerifySession before CreateAccount,
+	// which failed because getClient → GetAccountByID couldn't find the account in DB.
 	accID, _ := uuid.NewV7()
 	acc := &domain.Account{
 		ID:          accID,
-		Phone:       "PENDING_" + accID.String()[:8], // Temporary unique phone
+		Phone:       "PENDING_" + accID.String()[:8], // Temporary unique phone until verified
 		Status:      domain.StateWarmingUp,
 		Channel:     "telegram",
 		ProxyID:     proxy.ID,
@@ -242,29 +239,47 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 		UpdatedAt:   time.Now(),
 	}
 
-	// Save session first so verification can use it
-	if err := u.accountRepo.SaveSession(ctx, &domain.Session{
+	if err := u.accountRepo.CreateAccount(ctx, acc); err != nil {
+		return nil, fmt.Errorf("failed to create pending account: %w", err)
+	}
+
+	// NITPICK 1 FIX: If anything below fails, clean up the account (cascades to session via DB).
+	// This prevents orphan session rows lingering permanently.
+	var importErr error
+	defer func() {
+		if importErr != nil {
+			u.tgClient.StopClient(acc.ID)
+			_ = u.accountRepo.DeleteAccount(ctx, acc.ID)
+		}
+	}()
+
+	// 8. Save session so getClient/VerifySession can load it
+	if importErr = u.accountRepo.SaveSession(ctx, &domain.Session{
 		AccountID:   acc.ID,
 		SessionData: string(marshaled),
 		UpdatedAt:   time.Now(),
-	}); err != nil {
-		return nil, err
+	}); importErr != nil {
+		return nil, importErr
 	}
 
-	// 8. Verify with gotd (Strict Timeout)
+	// 9. Verify with gotd (Strict Timeout)
 	verifyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	phone, err := u.tgClient.VerifySession(verifyCtx, acc.ID)
-	if err != nil {
-		return nil, fmt.Errorf("session verification failed (proxy or auth error): %w", err)
+	phone, verifyErr := u.tgClient.VerifySession(verifyCtx, acc.ID)
+	if verifyErr != nil {
+		importErr = fmt.Errorf("session verification failed (proxy or auth error): %w", verifyErr)
+		return nil, importErr
 	}
 
+	// 10. Verification succeeded — promote account to ACTIVE
 	acc.Phone = phone
 	acc.Status = domain.StateActive
+	acc.UpdatedAt = time.Now()
 
-	if err := u.accountRepo.CreateAccount(ctx, acc); err != nil {
-		return nil, err
+	if updateErr := u.accountRepo.UpdateAccount(ctx, acc); updateErr != nil {
+		importErr = updateErr
+		return nil, importErr
 	}
 
 	return acc, nil

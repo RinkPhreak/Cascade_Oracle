@@ -81,21 +81,24 @@ func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*t
 		SessionStorage: sessionStorage,
 	}
 
-	// 1. Setup Proxy if available
+	// 1. Setup Proxy — MANDATORY when ProxyID is set.
+	// NITPICK 3 FIX: Never fall back to direct IP; that exposes the server and causes instant bans.
 	if acc.ProxyID != uuid.Nil {
 		prx, err := p.proxyRepo.GetByID(ctx, acc.ProxyID)
-		if err == nil {
-			dialer, err := proxy.SOCKS5("tcp", fmt.Sprintf("%s:%d", prx.Host, prx.Port), &proxy.Auth{
-				User:     prx.Username,
-				Password: prx.Password,
-			}, proxy.Direct)
-			if err == nil {
-				contextDialer := dialer.(proxy.ContextDialer)
-				opts.Resolver = dcs.Plain(dcs.PlainOptions{
-					Dial: contextDialer.DialContext,
-				})
-			}
+		if err != nil {
+			return nil, fmt.Errorf("proxy %s lookup failed, refusing direct connect: %w", acc.ProxyID, err)
 		}
+		dialer, err := proxy.SOCKS5("tcp", fmt.Sprintf("%s:%d", prx.Host, prx.Port), &proxy.Auth{
+			User:     prx.Username,
+			Password: prx.Password,
+		}, proxy.Direct)
+		if err != nil {
+			return nil, fmt.Errorf("proxy SOCKS5 dial setup failed for %s:%d, refusing direct connect: %w", prx.Host, prx.Port, err)
+		}
+		contextDialer := dialer.(proxy.ContextDialer)
+		opts.Resolver = dcs.Plain(dcs.PlainOptions{
+			Dial: contextDialer.DialContext,
+		})
 	}
 
 	// 2. Setup Device Config from account credentials if JSON
@@ -118,15 +121,58 @@ func (p *gotdClientPool) getClient(ctx context.Context, accountID uuid.UUID) (*t
 
 	runCtx, cancel := context.WithCancel(context.Background())
 
-	// Tier 1.1 Fix: Supervisor Goroutine loop for mtproto long-lived connection.
+	// BLOCKER 3 FIX: Block until the MTProto handshake completes.
+	// The old code returned immediately after spawning the goroutine,
+	// so callers could race against an unready client.
+	ready := make(chan struct{})
+	startupErr := make(chan error, 1)
+
 	go func() {
 		defer func() {
-			// Prevent random MTProto panics from crashing the cascade binary
-			recover()
+			if r := recover(); r != nil {
+				// Prevent random MTProto panics from crashing the cascade binary
+				select {
+				case startupErr <- fmt.Errorf("gotd panic: %v", r):
+				default:
+				}
+			}
 		}()
-		// RunUntilCanceled restores dropped connections natively and gracefully dies on ctx cancel.
-		_ = telegram.RunUntilCanceled(runCtx, client)
+
+		err := client.Run(runCtx, func(ctx context.Context) error {
+			// Signal that the connection is established and auth is loaded
+			close(ready)
+			// Block here to keep the client alive until runCtx is cancelled
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		// If Run returns before ready was closed, it's a startup failure
+		select {
+		case startupErr <- err:
+		default:
+		}
 	}()
+
+	// Wait for either: connection ready, startup error, or caller context timeout
+	const startupTimeout = 15 * time.Second
+	timer := time.NewTimer(startupTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-ready:
+		// Connection established, proceed
+	case err := <-startupErr:
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("gotd client startup failed: %w", err)
+		}
+		return nil, fmt.Errorf("gotd client startup failed: Run exited prematurely")
+	case <-timer.C:
+		cancel()
+		return nil, fmt.Errorf("gotd client startup timed out after %s", startupTimeout)
+	case <-ctx.Done():
+		cancel()
+		return nil, fmt.Errorf("context cancelled during gotd startup: %w", ctx.Err())
+	}
 
 	p.clients[accountID] = client
 	p.cancels[accountID] = cancel

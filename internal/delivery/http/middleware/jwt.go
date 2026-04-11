@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"crypto/rsa"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -32,7 +32,7 @@ func RequireAuth(pubKey *rsa.PublicKey) fiber.Handler {
 		}, jwt.WithLeeway(5*time.Minute))
 
 		if err != nil || !token.Valid {
-			log.Printf("🔥 JWT PARSE ERROR: %v\n", err)
+			slog.Error("JWT parse error", "error", err)
 
 			return c.Status(fiber.StatusUnauthorized).JSON(dto.ErrorResponse{
 				Code:    "UNAUTHORIZED",

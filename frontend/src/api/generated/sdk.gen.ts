@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetApiV1AccountsData, GetApiV1AccountsResponses, GetApiV1CampaignsByIdStatsData, GetApiV1CampaignsByIdStatsResponses, GetApiV1CampaignsByIdTasksData, GetApiV1CampaignsByIdTasksResponses, GetApiV1CampaignsData, GetApiV1CampaignsResponses, GetApiV1ContactsByIdTraceData, GetApiV1ContactsByIdTraceResponses, GetApiV1ContactsData, GetApiV1ContactsResponses, GetApiV1ProxiesData, GetApiV1ProxiesResponses, GetApiV1SystemMetricsData, GetApiV1SystemMetricsResponses, PostApiV1AccountsRegisterData, PostApiV1AccountsRegisterResponses, PostApiV1AuthLoginData, PostApiV1AuthLoginErrors, PostApiV1AuthLoginResponses, PostApiV1CampaignsByIdImportData, PostApiV1CampaignsByIdImportErrors, PostApiV1CampaignsByIdImportResponses, PostApiV1CampaignsByIdPauseData, PostApiV1CampaignsByIdPauseErrors, PostApiV1CampaignsByIdPauseResponses, PostApiV1CampaignsByIdStartData, PostApiV1CampaignsByIdStartErrors, PostApiV1CampaignsByIdStartResponses, PostApiV1CampaignsData, PostApiV1CampaignsErrors, PostApiV1CampaignsResponses, PostApiV1ContactsByIdAnonymiseData, PostApiV1ContactsByIdAnonymiseErrors, PostApiV1ContactsByIdAnonymiseResponses, PostApiV1ProxiesData, PostApiV1ProxiesResponses, PostApiV1SystemHaltData, PostApiV1SystemHaltErrors, PostApiV1SystemHaltResponses, PostApiV1SystemResumeData, PostApiV1SystemResumeErrors, PostApiV1SystemResumeResponses } from './types.gen';
+import type { DeleteApiV1AccountsByIdData, DeleteApiV1AccountsByIdErrors, DeleteApiV1AccountsByIdResponses, DeleteApiV1ProxiesByIdData, DeleteApiV1ProxiesByIdResponses, GetApiV1AccountsByIdEventsData, GetApiV1AccountsByIdEventsResponses, GetApiV1AccountsData, GetApiV1AccountsResponses, GetApiV1CampaignsByIdStatsData, GetApiV1CampaignsByIdStatsResponses, GetApiV1CampaignsByIdTasksData, GetApiV1CampaignsByIdTasksResponses, GetApiV1CampaignsData, GetApiV1CampaignsResponses, GetApiV1ContactsByIdTraceData, GetApiV1ContactsByIdTraceResponses, GetApiV1ContactsData, GetApiV1ContactsResponses, GetApiV1ProxiesData, GetApiV1ProxiesResponses, GetApiV1SystemMetricsData, GetApiV1SystemMetricsResponses, PostApiV1AccountsImportData, PostApiV1AccountsImportErrors, PostApiV1AccountsImportResponses, PostApiV1AccountsRegisterData, PostApiV1AccountsRegisterResponses, PostApiV1AuthLoginData, PostApiV1AuthLoginErrors, PostApiV1AuthLoginResponses, PostApiV1CampaignsByIdImportData, PostApiV1CampaignsByIdImportErrors, PostApiV1CampaignsByIdImportResponses, PostApiV1CampaignsByIdPauseData, PostApiV1CampaignsByIdPauseErrors, PostApiV1CampaignsByIdPauseResponses, PostApiV1CampaignsByIdStartData, PostApiV1CampaignsByIdStartErrors, PostApiV1CampaignsByIdStartResponses, PostApiV1CampaignsData, PostApiV1CampaignsErrors, PostApiV1CampaignsResponses, PostApiV1ContactsByIdAnonymiseData, PostApiV1ContactsByIdAnonymiseErrors, PostApiV1ContactsByIdAnonymiseResponses, PostApiV1ProxiesByIdReassignData, PostApiV1ProxiesByIdReassignResponses, PostApiV1ProxiesData, PostApiV1ProxiesResponses, PostApiV1SystemHaltData, PostApiV1SystemHaltErrors, PostApiV1SystemHaltResponses, PostApiV1SystemResumeData, PostApiV1SystemResumeErrors, PostApiV1SystemResumeResponses, PostApiV1TasksByIdRequeueData, PostApiV1TasksByIdRequeueResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -21,18 +21,55 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 /**
  * List all Telegram accounts
  */
-export const getApiV1Accounts = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1AccountsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1AccountsResponses, unknown, ThrowOnError>({ url: '/api/v1/accounts', ...options });
+export const getApiV1Accounts = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1AccountsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1AccountsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/accounts',
+    ...options
+});
 
 /**
  * Register a new TG account
  */
 export const postApiV1AccountsRegister = <ThrowOnError extends boolean = false>(options: Options<PostApiV1AccountsRegisterData, ThrowOnError>) => (options.client ?? client).post<PostApiV1AccountsRegisterResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/accounts/register',
     ...options,
     headers: {
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Import a TG account using session files and proxy
+ */
+export const postApiV1AccountsImport = <ThrowOnError extends boolean = false>(options: Options<PostApiV1AccountsImportData, ThrowOnError>) => (options.client ?? client).post<PostApiV1AccountsImportResponses, PostApiV1AccountsImportErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/accounts/import',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a TG account from the pool
+ */
+export const deleteApiV1AccountsById = <ThrowOnError extends boolean = false>(options: Options<DeleteApiV1AccountsByIdData, ThrowOnError>) => (options.client ?? client).delete<DeleteApiV1AccountsByIdResponses, DeleteApiV1AccountsByIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/accounts/{id}',
+    ...options
+});
+
+/**
+ * Fetch account event log for a specific account
+ */
+export const getApiV1AccountsByIdEvents = <ThrowOnError extends boolean = false>(options: Options<GetApiV1AccountsByIdEventsData, ThrowOnError>) => (options.client ?? client).get<GetApiV1AccountsByIdEventsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/accounts/{id}/events',
+    ...options
 });
 
 /**
@@ -50,7 +87,11 @@ export const postApiV1AuthLogin = <ThrowOnError extends boolean = false>(options
 /**
  * List all campaigns
  */
-export const getApiV1Campaigns = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1CampaignsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1CampaignsResponses, unknown, ThrowOnError>({ url: '/api/v1/campaigns', ...options });
+export const getApiV1Campaigns = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1CampaignsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1CampaignsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/campaigns',
+    ...options
+});
 
 /**
  * Create a new campaign
@@ -81,6 +122,7 @@ export const postApiV1CampaignsByIdImport = <ThrowOnError extends boolean = fals
  * Emergency Campaign Pause
  */
 export const postApiV1CampaignsByIdPause = <ThrowOnError extends boolean = false>(options: Options<PostApiV1CampaignsByIdPauseData, ThrowOnError>) => (options.client ?? client).post<PostApiV1CampaignsByIdPauseResponses, PostApiV1CampaignsByIdPauseErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/campaigns/{id}/pause',
     ...options,
     headers: {
@@ -97,38 +139,85 @@ export const postApiV1CampaignsByIdStart = <ThrowOnError extends boolean = false
 /**
  * Fetch campaign statistics
  */
-export const getApiV1CampaignsByIdStats = <ThrowOnError extends boolean = false>(options: Options<GetApiV1CampaignsByIdStatsData, ThrowOnError>) => (options.client ?? client).get<GetApiV1CampaignsByIdStatsResponses, unknown, ThrowOnError>({ url: '/api/v1/campaigns/{id}/stats', ...options });
+export const getApiV1CampaignsByIdStats = <ThrowOnError extends boolean = false>(options: Options<GetApiV1CampaignsByIdStatsData, ThrowOnError>) => (options.client ?? client).get<GetApiV1CampaignsByIdStatsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/campaigns/{id}/stats',
+    ...options
+});
 
 /**
  * List in-progress delivery tasks
  */
-export const getApiV1CampaignsByIdTasks = <ThrowOnError extends boolean = false>(options: Options<GetApiV1CampaignsByIdTasksData, ThrowOnError>) => (options.client ?? client).get<GetApiV1CampaignsByIdTasksResponses, unknown, ThrowOnError>({ url: '/api/v1/campaigns/{id}/tasks', ...options });
+export const getApiV1CampaignsByIdTasks = <ThrowOnError extends boolean = false>(options: Options<GetApiV1CampaignsByIdTasksData, ThrowOnError>) => (options.client ?? client).get<GetApiV1CampaignsByIdTasksResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/campaigns/{id}/tasks',
+    ...options
+});
 
 /**
  * List contacts (leads)
  */
-export const getApiV1Contacts = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1ContactsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1ContactsResponses, unknown, ThrowOnError>({ url: '/api/v1/contacts', ...options });
+export const getApiV1Contacts = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1ContactsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1ContactsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contacts',
+    ...options
+});
 
 /**
  * Right to be Forgotten (152-FZ / GDPR)
  */
-export const postApiV1ContactsByIdAnonymise = <ThrowOnError extends boolean = false>(options: Options<PostApiV1ContactsByIdAnonymiseData, ThrowOnError>) => (options.client ?? client).post<PostApiV1ContactsByIdAnonymiseResponses, PostApiV1ContactsByIdAnonymiseErrors, ThrowOnError>({ url: '/api/v1/contacts/{id}/anonymise', ...options });
+export const postApiV1ContactsByIdAnonymise = <ThrowOnError extends boolean = false>(options: Options<PostApiV1ContactsByIdAnonymiseData, ThrowOnError>) => (options.client ?? client).post<PostApiV1ContactsByIdAnonymiseResponses, PostApiV1ContactsByIdAnonymiseErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contacts/{id}/anonymise',
+    ...options
+});
 
 /**
  * Fetch delivery trace for a contact
  */
-export const getApiV1ContactsByIdTrace = <ThrowOnError extends boolean = false>(options: Options<GetApiV1ContactsByIdTraceData, ThrowOnError>) => (options.client ?? client).get<GetApiV1ContactsByIdTraceResponses, unknown, ThrowOnError>({ url: '/api/v1/contacts/{id}/trace', ...options });
+export const getApiV1ContactsByIdTrace = <ThrowOnError extends boolean = false>(options: Options<GetApiV1ContactsByIdTraceData, ThrowOnError>) => (options.client ?? client).get<GetApiV1ContactsByIdTraceResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/contacts/{id}/trace',
+    ...options
+});
 
 /**
  * List all network proxies
  */
-export const getApiV1Proxies = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1ProxiesData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1ProxiesResponses, unknown, ThrowOnError>({ url: '/api/v1/proxies', ...options });
+export const getApiV1Proxies = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1ProxiesData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1ProxiesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/proxies',
+    ...options
+});
 
 /**
  * Add a new proxy
  */
 export const postApiV1Proxies = <ThrowOnError extends boolean = false>(options: Options<PostApiV1ProxiesData, ThrowOnError>) => (options.client ?? client).post<PostApiV1ProxiesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/proxies',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a proxy from the pool
+ */
+export const deleteApiV1ProxiesById = <ThrowOnError extends boolean = false>(options: Options<DeleteApiV1ProxiesByIdData, ThrowOnError>) => (options.client ?? client).delete<DeleteApiV1ProxiesByIdResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/proxies/{id}',
+    ...options
+});
+
+/**
+ * Re-assign a proxy to a different account
+ */
+export const postApiV1ProxiesByIdReassign = <ThrowOnError extends boolean = false>(options: Options<PostApiV1ProxiesByIdReassignData, ThrowOnError>) => (options.client ?? client).post<PostApiV1ProxiesByIdReassignResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/proxies/{id}/reassign',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -140,6 +229,7 @@ export const postApiV1Proxies = <ThrowOnError extends boolean = false>(options: 
  * Emergency Break-Glass Halt
  */
 export const postApiV1SystemHalt = <ThrowOnError extends boolean = false>(options: Options<PostApiV1SystemHaltData, ThrowOnError>) => (options.client ?? client).post<PostApiV1SystemHaltResponses, PostApiV1SystemHaltErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/system/halt',
     ...options,
     headers: {
@@ -151,16 +241,30 @@ export const postApiV1SystemHalt = <ThrowOnError extends boolean = false>(option
 /**
  * Fetch system health and halt state
  */
-export const getApiV1SystemMetrics = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1SystemMetricsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1SystemMetricsResponses, unknown, ThrowOnError>({ url: '/api/v1/system/metrics', ...options });
+export const getApiV1SystemMetrics = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1SystemMetricsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1SystemMetricsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/system/metrics',
+    ...options
+});
 
 /**
  * Emergency Break-Glass Resume
  */
 export const postApiV1SystemResume = <ThrowOnError extends boolean = false>(options: Options<PostApiV1SystemResumeData, ThrowOnError>) => (options.client ?? client).post<PostApiV1SystemResumeResponses, PostApiV1SystemResumeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/system/resume',
     ...options,
     headers: {
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Requeue a stuck task
+ */
+export const postApiV1TasksByIdRequeue = <ThrowOnError extends boolean = false>(options: Options<PostApiV1TasksByIdRequeueData, ThrowOnError>) => (options.client ?? client).post<PostApiV1TasksByIdRequeueResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/tasks/{id}/requeue',
+    ...options
 });

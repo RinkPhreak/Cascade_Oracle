@@ -1,19 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import type { Contact } from '../../../api/extended-types';
+import type { DtoContact } from '../../../api/generated';
 import { client } from '../../../api/client';
 
 export const LEADS_QUERY_KEY = ['leads'] as const;
 
 /** Fetch contacts where has_replied = true. Polls every 20s. */
 export const useLeads = () =>
-  useQuery<Contact[]>({
+  useQuery<DtoContact[]>({
     queryKey: LEADS_QUERY_KEY,
     queryFn: async () => {
-      const response = await client.get<Contact[], unknown>({
+      const response = await client.get<DtoContact[], unknown>({
         url: '/api/v1/contacts',
         // The backend should support ?has_replied=true filter
       });
-      const result = response as { data?: Contact[]; error?: { message?: string } };
+      const result = response as { data?: DtoContact[]; error?: { message?: string } };
       if (result.error) {
         return [];
       }

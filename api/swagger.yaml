@@ -1,212 +1,7 @@
-definitions:
-  dto.AccountResponse:
-    properties:
-      channel:
-        type: string
-      created_at:
-        type: string
-      daily_check_count:
-        type: integer
-      daily_send_count:
-        type: integer
-      id:
-        type: string
-      phone:
-        type: string
-      proxy_id:
-        type: string
-      status:
-        type: string
-    type: object
-  dto.AnonymiseResponse:
-    properties:
-      contact_id:
-        type: string
-      message:
-        type: string
-      status:
-        type: string
-    type: object
-  dto.AuthLoginRequest:
-    properties:
-      login:
-        type: string
-      password:
-        type: string
-    required:
-    - login
-    - password
-    type: object
-  dto.AuthTokenResponse:
-    properties:
-      access_token:
-        type: string
-    type: object
-  dto.BreakGlassRequest:
-    properties:
-      password:
-        type: string
-      reason:
-        type: string
-    required:
-    - password
-    type: object
-  dto.CampaignResponse:
-    description: Summary view of a created or fetched campaign.
-    properties:
-      created_at:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      scheduled_at:
-        type: string
-      status:
-        type: string
-    type: object
-  dto.CampaignStatsResponse:
-    properties:
-      completed:
-        type: integer
-      error_breakdown:
-        additionalProperties:
-          type: integer
-        type: object
-      failed:
-        type: integer
-      replied:
-        type: integer
-      sms_attempted:
-        type: integer
-      tg_attempted:
-        type: integer
-      total:
-        type: integer
-    type: object
-  dto.CampaignTaskResponse:
-    properties:
-      attempt_number:
-        type: integer
-      channel:
-        type: string
-      contact_id:
-        type: string
-      id:
-        type: string
-      status:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  dto.ContactTraceResponse:
-    properties:
-      attempt:
-        type: integer
-      channel:
-        type: string
-      error_code:
-        type: string
-      error_message:
-        type: string
-      id:
-        type: string
-      status:
-        type: string
-      timestamp:
-        type: string
-    type: object
-  dto.CreateCampaignRequest:
-    description: Payload containing name, optional schedule, and mandatory templates
-      for telegram/sms channels.
-    properties:
-      name:
-        type: string
-      scheduled_at:
-        type: string
-      templates:
-        additionalProperties:
-          type: string
-        description: <--- Убрали validate:"required"
-        type: object
-    required:
-    - name
-    type: object
-  dto.CreateProxyRequest:
-    properties:
-      host:
-        type: string
-      id:
-        type: string
-      password:
-        type: string
-      port:
-        type: integer
-      username:
-        type: string
-    required:
-    - host
-    - port
-    type: object
-  dto.ErrorResponse:
-    properties:
-      code:
-        type: string
-      message:
-        type: string
-    type: object
-  dto.LeadResponse:
-    properties:
-      channel:
-        type: string
-      id:
-        type: string
-      message:
-        type: string
-      name:
-        type: string
-      phone:
-        type: string
-      replied_at:
-        type: string
-    type: object
-  dto.ProxyResponse:
-    properties:
-      created_at:
-        type: string
-      host:
-        type: string
-      id:
-        type: string
-      port:
-        type: integer
-      status:
-        type: string
-      username:
-        type: string
-    type: object
-  dto.RegisterAccountRequest:
-    properties:
-      phone:
-        type: string
-    required:
-    - phone
-    type: object
-  dto.SystemMetricsResponse:
-    properties:
-      active_tg_accounts:
-        type: integer
-      cascade_memory_usage_ratio:
-        type: number
-      queue_depth:
-        type: integer
-      system_status:
-        description: '''OPERATIONAL'', ''DEGRADED'', ''HALTED'''
-        type: string
-      total_tg_accounts:
-        type: integer
-    type: object
+openapi: 3.0.0
 info:
+  title: Cascade Oracle API
+  version: 1.0.0
   contact: {}
 paths:
   /api/v1/accounts:
@@ -214,10 +9,12 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.AccountResponse'
-            type: array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoTgAccount'
       security:
       - Bearer: []
       summary: List all Telegram accounts
@@ -225,49 +22,135 @@ paths:
       - accounts
   /api/v1/accounts/register:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Phone
-        in: body
-        name: request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoRegisterAccountRequest'
+        description: Phone
         required: true
-        schema:
-          $ref: '#/definitions/dto.RegisterAccountRequest'
-      produces:
-      - application/json
       responses:
         "201":
           description: Created
-          schema:
-            $ref: '#/definitions/dto.AccountResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTgAccount'
       security:
       - Bearer: []
       summary: Register a new TG account
       tags:
       - accounts
-  /api/v1/auth/login:
+  /api/v1/accounts/import:
     post:
-      consumes:
-      - application/json
+      summary: Import a TG account using session files and proxy
+      tags:
+      - accounts
+      security:
+      - Bearer: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                proxy_host:
+                  type: string
+                proxy_port:
+                  type: integer
+                proxy_username:
+                  type: string
+                proxy_password:
+                  type: string
+                comment:
+                  type: string
+              required:
+                - file
+                - proxy_host
+                - proxy_port
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoTgAccount'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
+  /api/v1/accounts/{id}:
+    delete:
+      summary: Delete a TG account from the pool
+      tags:
+      - accounts
       parameters:
-      - description: Credentials
-        in: body
-        name: request
+      - name: id
+        in: path
         required: true
         schema:
-          $ref: '#/definitions/dto.AuthLoginRequest'
-      produces:
-      - application/json
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
+      security:
+      - Bearer: []
+  /api/v1/accounts/{id}/events:
+    get:
+      summary: Fetch account event log for a specific account
+      tags:
+      - accounts
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/dto.AuthTokenResponse'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoAccountEvent'
+      security:
+      - Bearer: []
+  /api/v1/auth/login:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoAuthLoginRequest'
+        description: Credentials
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoAuthTokenResponse'
         "401":
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       summary: Operator Login
       tags:
       - auth
@@ -276,95 +159,106 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.CampaignResponse'
-            type: array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoCampaignResponse'
       security:
       - Bearer: []
       summary: List all campaigns
       tags:
       - campaigns
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Campaign params
-        in: body
-        name: request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateCampaignRequest'
+        description: Campaign params
         required: true
-        schema:
-          $ref: '#/definitions/dto.CreateCampaignRequest'
-      produces:
-      - application/json
       responses:
         "201":
           description: Created
-          schema:
-            $ref: '#/definitions/dto.CampaignResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoCampaignResponse'
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       summary: Create a new campaign
       tags:
       - campaigns
   /api/v1/campaigns/{id}/import:
     post:
-      consumes:
-      - multipart/form-data
       parameters:
       - description: Campaign UUID
         in: path
         name: id
         required: true
-        type: string
-      - description: CSV File
-        in: formData
-        name: file
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: CSV File
+                  format: binary
+                  type: string
+              required:
+              - file
+              type: object
         required: true
-        type: file
-      produces:
-      - application/json
       responses:
         "200":
           description: OK
-          schema:
-            additionalProperties:
-              type: integer
-            type: object
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: integer
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       summary: Import contacts via CSV
       tags:
       - campaigns
   /api/v1/campaigns/{id}/pause:
     post:
-      consumes:
-      - application/json
       parameters:
       - description: Campaign UUID
         in: path
         name: id
         required: true
-        type: string
-      - description: Re-auth required
-        in: body
-        name: request
-        required: true
         schema:
-          $ref: '#/definitions/dto.BreakGlassRequest'
-      produces:
-      - application/json
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoBreakGlassRequest'
+        description: Re-auth required
+        required: true
       responses:
         "200":
           description: Campaign Paused
         "403":
           description: Forbidden
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       security:
       - Bearer: []
       summary: Emergency Campaign Pause
@@ -377,18 +271,23 @@ paths:
         in: path
         name: id
         required: true
-        type: string
+        schema:
+          type: string
       responses:
         "202":
           description: Accepted for processing
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
         "503":
           description: Service Unavailable
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       summary: Enqueue campaign for processing
       tags:
       - campaigns
@@ -399,20 +298,25 @@ paths:
         in: path
         name: id
         required: true
-        type: string
+        schema:
+          type: string
       - description: Filter from (ISO8601)
         in: query
         name: start_time
-        type: string
+        schema:
+          type: string
       - description: Filter to (ISO8601)
         in: query
         name: end_time
-        type: string
+        schema:
+          type: string
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/dto.CampaignStatsResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoCampaignStatsResponse'
       security:
       - Bearer: []
       summary: Fetch campaign statistics
@@ -425,14 +329,17 @@ paths:
         in: path
         name: id
         required: true
-        type: string
+        schema:
+          type: string
       responses:
         "200":
           description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.CampaignTaskResponse'
-            type: array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoCampaignTaskResponse'
       security:
       - Bearer: []
       summary: List in-progress delivery tasks
@@ -444,14 +351,17 @@ paths:
       - description: Filter only those who replied
         in: query
         name: has_replied
-        type: boolean
+        schema:
+          type: boolean
       responses:
         "200":
           description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.LeadResponse'
-            type: array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoLeadResponse'
       security:
       - Bearer: []
       summary: List contacts (leads)
@@ -464,22 +374,27 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      produces:
-      - application/json
+        schema:
+          type: string
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/dto.AnonymiseResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoAnonymiseResponse'
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
         "500":
           description: Internal Server Error
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       security:
       - Bearer: []
       summary: Right to be Forgotten (152-FZ / GDPR)
@@ -492,14 +407,17 @@ paths:
         in: path
         name: id
         required: true
-        type: string
+        schema:
+          type: string
       responses:
         "200":
           description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.ContactTraceResponse'
-            type: array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoContactTraceResponse'
       security:
       - Bearer: []
       summary: Fetch delivery trace for a contact
@@ -510,57 +428,93 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            items:
-              $ref: '#/definitions/dto.ProxyResponse'
-            type: array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DtoProxyResponse'
       security:
       - Bearer: []
       summary: List all network proxies
       tags:
       - proxies
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Proxy Address
-        in: body
-        name: request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoCreateProxyRequest'
+        description: Proxy Address
         required: true
-        schema:
-          $ref: '#/definitions/dto.CreateProxyRequest'
-      produces:
-      - application/json
       responses:
         "201":
           description: Created
-          schema:
-            $ref: '#/definitions/dto.ProxyResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoProxyResponse'
       security:
       - Bearer: []
       summary: Add a new proxy
       tags:
       - proxies
-  /api/v1/system/halt:
-    post:
-      consumes:
-      - application/json
+  /api/v1/proxies/{id}:
+    delete:
+      summary: Delete a proxy from the pool
+      tags:
+      - proxies
       parameters:
-      - description: Reason and Re-auth
-        in: body
-        name: request
+      - name: id
+        in: path
         required: true
         schema:
-          $ref: '#/definitions/dto.BreakGlassRequest'
-      produces:
-      - application/json
+          type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+  /api/v1/proxies/{id}/reassign:
+    post:
+      summary: Re-assign a proxy to a different account
+      tags:
+      - proxies
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoReassignProxyRequest'
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+  /api/v1/system/halt:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoBreakGlassRequest'
+        description: Reason and Re-auth
+        required: true
       responses:
         "200":
           description: System Halted
         "403":
           description: Forbidden
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       security:
       - Bearer: []
       summary: Emergency Break-Glass Halt
@@ -571,8 +525,10 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/dto.SystemMetricsResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoSystemMetricsResponse'
       security:
       - Bearer: []
       summary: Fetch system health and halt state
@@ -580,27 +536,542 @@ paths:
       - system
   /api/v1/system/resume:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Re-auth required
-        in: body
-        name: request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DtoBreakGlassRequest'
+        description: Re-auth required
         required: true
-        schema:
-          $ref: '#/definitions/dto.BreakGlassRequest'
-      produces:
-      - application/json
       responses:
         "200":
           description: System Resumed
         "403":
           description: Forbidden
-          schema:
-            $ref: '#/definitions/dto.ErrorResponse'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DtoErrorResponse'
       security:
       - Bearer: []
       summary: Emergency Break-Glass Resume
       tags:
       - system
-swagger: "2.0"
+  /api/v1/tasks/{id}/requeue:
+    post:
+      summary: Requeue a stuck task
+      tags:
+      - campaigns
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - Bearer: []
+components:
+  schemas:
+    DtoAccountResponse:
+      properties:
+        channel:
+          type: string
+        created_at:
+          type: string
+        daily_check_count:
+          type: integer
+        daily_send_count:
+          type: integer
+        id:
+          type: string
+        phone:
+          type: string
+        proxy_id:
+          type: string
+        status:
+          type: string
+      type: object
+    DtoAnonymiseResponse:
+      properties:
+        contact_id:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+      type: object
+    DtoAuthLoginRequest:
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+      required:
+      - login
+      - password
+      type: object
+    DtoAuthTokenResponse:
+      properties:
+        access_token:
+          type: string
+      type: object
+    DtoBreakGlassRequest:
+      properties:
+        password:
+          type: string
+        reason:
+          type: string
+      required:
+      - password
+      type: object
+    DtoCampaignResponse:
+      description: Summary view of a created or fetched campaign.
+      properties:
+        created_at:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        scheduled_at:
+          type: string
+        status:
+          type: string
+      type: object
+    DtoCampaignStatsResponse:
+      properties:
+        completed:
+          type: integer
+        error_breakdown:
+          additionalProperties:
+            type: integer
+          type: object
+        failed:
+          type: integer
+        replied:
+          type: integer
+        sms_attempted:
+          type: integer
+        tg_attempted:
+          type: integer
+        total:
+          type: integer
+      type: object
+    DtoCampaignTaskResponse:
+      properties:
+        attempt_number:
+          type: integer
+        channel:
+          type: string
+        contact_id:
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    DtoContactTraceResponse:
+      properties:
+        attempt:
+          type: integer
+        channel:
+          type: string
+        error_code:
+          type: string
+        error_message:
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+        timestamp:
+          type: string
+      type: object
+    DtoCreateCampaignRequest:
+      description: Payload containing name, optional schedule, and mandatory templates for telegram/sms channels.
+      properties:
+        name:
+          type: string
+        scheduled_at:
+          type: string
+        templates:
+          additionalProperties:
+            type: string
+          type: object
+      required:
+      - name
+      type: object
+    DtoCreateProxyRequest:
+      properties:
+        host:
+          type: string
+        id:
+          type: string
+        password:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        protocol:
+          type: string
+          enum: [socks5, http, mtproto]
+      required:
+      - host
+      - port
+      type: object
+    DtoErrorResponse:
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      type: object
+    DtoLeadResponse:
+      properties:
+        channel:
+          type: string
+        id:
+          type: string
+        message:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        replied_at:
+          type: string
+      type: object
+    DtoProxyResponse:
+      properties:
+        created_at:
+          type: string
+        host:
+          type: string
+        id:
+          type: string
+        port:
+          type: integer
+        status:
+          type: string
+        username:
+          type: string
+      type: object
+    DtoRegisterAccountRequest:
+      properties:
+        phone:
+          type: string
+      required:
+      - phone
+      type: object
+    DtoSystemMetricsResponse:
+      properties:
+        active_tg_accounts:
+          type: integer
+        cascade_memory_usage_ratio:
+          type: number
+        queue_depth:
+          type: integer
+        system_status:
+          description: '''OPERATIONAL'', ''DEGRADED'', ''HALTED'''
+          type: string
+        total_tg_accounts:
+          type: integer
+      type: object
+
+    # --- Added from extended-types.ts ---
+    DtoTgAccountStatus:
+      type: string
+      enum: [WARMING_UP, ACTIVE, COOLING_DOWN, SUSPENDED, BANNED]
+    DtoTgAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        status:
+          $ref: '#/components/schemas/DtoTgAccountStatus'
+        daily_count:
+          type: integer
+        daily_limit:
+          type: integer
+        proxy_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required: [id, phone, status, daily_count, daily_limit, created_at, updated_at]
+    DtoTgAccountSession:
+      type: object
+      properties:
+        session_id:
+          type: string
+        qr_url:
+          type: string
+          nullable: true
+        pairing_code:
+          type: string
+          nullable: true
+        expires_at:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_QR, PENDING_CODE, AUTHENTICATED, FAILED]
+      required: [session_id, expires_at, status]
+    DtoProxy:
+      type: object
+      properties:
+        id:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        protocol:
+          type: string
+          enum: [socks5, http, mtproto]
+        bound_account_id:
+          type: string
+          nullable: true
+        is_healthy:
+          type: boolean
+        latency_ms:
+          type: number
+          nullable: true
+        last_checked_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required: [id, host, port, username, protocol, is_healthy, created_at]
+    DtoReassignProxyRequest:
+      type: object
+      properties:
+        account_id:
+          type: string
+        reason:
+          type: string
+      required: [account_id, reason]
+    DtoAccountEventType:
+      type: string
+      enum: [BANNED, SERVICE_NOTICE, RECONNECT, SESSION_CREATED, SESSION_EXPIRED, PROXY_CHANGED, FLOOD_WAIT, STATUS_CHANGE]
+    DtoAccountEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        account_id:
+          type: string
+        type:
+          $ref: '#/components/schemas/DtoAccountEventType'
+        description:
+          type: string
+        occurred_at:
+          type: string
+      required: [id, account_id, type, description, occurred_at]
+    DtoCampaignStatus:
+      type: string
+      enum: [DRAFT, SCHEDULED, RUNNING, PAUSED, COMPLETED, FAILED]
+    DtoCampaign:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/DtoCampaignStatus'
+        scheduled_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        total_contacts:
+          type: integer
+        completed:
+          type: integer
+        replied:
+          type: integer
+        failed:
+          type: integer
+      required: [id, name, status, created_at, total_contacts, completed, replied, failed]
+    DtoCampaignStats:
+      type: object
+      properties:
+        campaign_id:
+          type: string
+        total:
+          type: integer
+        completed:
+          type: integer
+        replied:
+          type: integer
+        failed:
+          type: integer
+        tg_attempted:
+          type: integer
+        sms_attempted:
+          type: integer
+        error_breakdown:
+          type: object
+          additionalProperties:
+            type: integer
+      required: [campaign_id, total, completed, replied, failed, tg_attempted, sms_attempted, error_breakdown]
+    DtoCampaignListItem:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [draft, running, paused, completed]
+        scheduled_at:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+      required: [id, name, status, created_at]
+    DtoTaskStatus:
+      type: string
+      enum: [pending, in_progress, completed, replied, failed]
+    DtoTaskChannel:
+      type: string
+      enum: [telegram, sms]
+    DtoCampaignTask:
+      type: object
+      properties:
+        id:
+          type: string
+        campaign_id:
+          type: string
+        contact_id:
+          type: string
+        contact_phone:
+          type: string
+        status:
+          $ref: '#/components/schemas/DtoTaskStatus'
+        channel:
+          $ref: '#/components/schemas/DtoTaskChannel'
+        error_code:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+      required: [id, campaign_id, contact_id, contact_phone, status, channel, updated_at]
+    DtoStuckTask:
+      type: object
+      properties:
+        id:
+          type: string
+        contact_id:
+          type: string
+        status:
+          type: string
+        channel:
+          type: string
+        updated_at:
+          type: string
+      required: [id, contact_id, status, channel, updated_at]
+    DtoContact:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        name:
+          type: string
+        extra_data:
+          type: object
+          additionalProperties:
+            type: string
+        has_replied:
+          type: boolean
+        reply_text:
+          type: string
+          nullable: true
+        reply_at:
+          type: string
+          nullable: true
+        reply_account_id:
+          type: string
+          nullable: true
+        reply_account_phone:
+          type: string
+          nullable: true
+        is_anonymised:
+          type: boolean
+        created_at:
+          type: string
+      required: [id, phone, name, extra_data, has_replied, is_anonymised, created_at]
+    DtoContactCsvRow:
+      type: object
+      properties:
+        phone:
+          type: string
+        name:
+          type: string
+        extra_data:
+          type: object
+          additionalProperties:
+            type: string
+      required: [phone]
+    DtoContactTraceStepStatus:
+      type: string
+      enum: [ENQUEUED, ATTEMPTED, RATE_LIMITED, NOT_FOUND, DELIVERED, REPLIED, FAILED]
+    DtoContactTrace:
+      type: object
+      properties:
+        id:
+          type: string
+        contact_id:
+          type: string
+        step:
+          type: integer
+        channel:
+          type: string
+        status:
+          $ref: '#/components/schemas/DtoContactTraceStepStatus'
+        error_code:
+          type: string
+          nullable: true
+        description:
+          type: string
+        occurred_at:
+          type: string
+      required: [id, contact_id, step, channel, status, description, occurred_at]
+    DtoSystemMetrics:
+      type: object
+      properties:
+        cascade_memory_usage_ratio:
+          type: number
+        active_tg_accounts:
+          type: integer
+        total_tg_accounts:
+          type: integer
+        queue_depth:
+          type: integer
+        system_status:
+          type: string
+          enum: [OPERATIONAL, DEGRADED, HALTED]
+      required: [cascade_memory_usage_ratio, active_tg_accounts, total_tg_accounts, queue_depth, system_status]
+
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: bearer

@@ -1,4 +1,4 @@
-import type { Campaign } from '../../../api/extended-types';
+import type { DtoCampaign as Campaign } from '../../../api/generated';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { useDeleteCampaign } from '../hooks/useCampaigns';
 

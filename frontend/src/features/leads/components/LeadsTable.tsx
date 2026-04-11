@@ -1,10 +1,10 @@
-import type { Contact } from '../../../api/extended-types';
+import type { DtoContact } from '../../../api/generated';
 import { AnonymiseButton } from './AnonymiseButton';
 
 interface LeadsTableProps {
-  contacts: Contact[];
+  contacts: DtoContact[];
   isLoading: boolean;
-  onSelect: (contact: Contact) => void;
+  onSelect: (contact: DtoContact) => void;
 }
 
 const SkeletonRow = () => (

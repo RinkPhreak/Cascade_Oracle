@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Proxy } from '../../../api/extended-types';
+import type { DtoProxy } from '../../../api/generated';
 import { useReassignProxy } from '../hooks/useProxies';
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog';
 import { Modal } from '../../../shared/components/Modal';
@@ -7,7 +7,7 @@ import { Modal } from '../../../shared/components/Modal';
 interface ReassignProxyDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  proxy: Proxy | null;
+  proxy: DtoProxy | null;
   accounts: { id: string; phone: string }[];
 }
 

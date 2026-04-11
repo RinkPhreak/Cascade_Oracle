@@ -5,6 +5,7 @@ import (
 	"cascade/internal/application/usecase"
 	"cascade/internal/delivery/http/dto"
 	"io"
+	"log/slog"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -94,17 +95,25 @@ func (h *AccountHandler) Delete(c *fiber.Ctx) error {
 func (h *AccountHandler) Import(c *fiber.Ctx) error {
 	form, err := c.MultipartForm()
 	if err != nil {
+		slog.Error("failed to parse multipart form", "error", err)
 		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "failed to parse multipart form"})
 	}
 
 	filesMap := make(map[string][]byte)
-	for _, files := range form.File {
-		for _, file := range files {
-			f, _ := file.Open()
-			data, _ := io.ReadAll(f)
-			filesMap[file.Filename] = data
-			f.Close()
+	// We specifically look for the "file" key as per contract
+	formFiles := form.File["file"]
+	if len(formFiles) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.ErrorResponse{Code: "BAD_REQUEST", Message: "missing 'file' field"})
+	}
+
+	for _, file := range formFiles {
+		f, err := file.Open()
+		if err != nil {
+			continue
 		}
+		data, _ := io.ReadAll(f)
+		filesMap[file.Filename] = data
+		f.Close()
 	}
 
 	proxyPort, _ := strconv.Atoi(c.FormValue("proxy_port"))

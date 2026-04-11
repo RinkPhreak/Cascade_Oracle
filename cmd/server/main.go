@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -120,8 +121,17 @@ func main() {
 		log.Fatalf("failed to init crypto service: %v", err)
 	}
 
+	smsTimeout, _ := time.ParseDuration(os.Getenv("SMS_RU_TIMEOUT"))
+	if smsTimeout == 0 {
+		smsTimeout = 10 * time.Second
+	}
+	smsClient := messenger.NewSMSRuClient(os.Getenv("SMS_RU_API_ID"), smsTimeout)
+
 	enqueuer := asynqAdapter.NewAsynqEnqueuer(redisAddr)
 	tgPool := messenger.NewTelegramClientPool(accountRepo, proxyRepo, appID, appHash)
+
+	sessionStorage := db.NewSessionStorage()
+	sessionParser := usecase.NewSessionParser(sessionStorage)
 
 	uow := db.NewUnitOfWork(gormDB)
 
@@ -129,10 +139,10 @@ func main() {
 	authUC := usecase.NewAuthUseCase(adminLogin, adminPasswdHash, jwtPrivKey)
 	contactUC := usecase.NewContactUseCase(contactRepo, attemptRepo, uow, cryptoSvc)
 	campUC := usecase.NewCampaignUseCase(campaignRepo, contactRepo, attemptRepo, enqueuer, uow, cryptoSvc)
-	accountUC := usecase.NewAccountUseCase(accountRepo, proxyRepo, tgPool)
+	accountUC := usecase.NewAccountUseCase(accountRepo, proxyRepo, tgPool, sessionParser)
 	waterfallUC := usecase.NewWaterfallUseCase(
 		campaignRepo, contactRepo, accountRepo, proxyRepo,
-		attemptRepo, tgPool, nil, // Replaced explicit SMS with nil
+		attemptRepo, tgPool, smsClient,
 		redisCache, enqueuer, cryptoSvc,
 	)
 

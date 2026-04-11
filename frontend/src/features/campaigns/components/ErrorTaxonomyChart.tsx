@@ -1,4 +1,4 @@
-import type { CampaignStats } from '../../../api/extended-types';
+import type { DtoCampaignStats as CampaignStats } from '../../../api/generated';
 
 interface ErrorTaxonomyChartProps {
   stats: CampaignStats;

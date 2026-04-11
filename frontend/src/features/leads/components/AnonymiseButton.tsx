@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Contact } from '../../../api/extended-types';
+import type { DtoContact as Contact } from '../../../api/generated';
 import { useAnonymiseContact } from '../hooks/useAnonymiseContact';
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog';
 

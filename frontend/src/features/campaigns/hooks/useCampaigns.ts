@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Campaign } from '../../../api/extended-types';
+import type { DtoCampaign } from '../../../api/generated';
 import { client } from '../../../api/client';
 import { toast } from '../../../shared/hooks/useToast';
 
@@ -7,13 +7,13 @@ export const CAMPAIGNS_QUERY_KEY = ['campaigns'] as const;
 
 /** Fetch all campaigns, polling every 15s. */
 export const useCampaigns = () =>
-  useQuery<Campaign[]>({
+  useQuery<DtoCampaign[]>({
     queryKey: CAMPAIGNS_QUERY_KEY,
     queryFn: async () => {
-      const response = await client.get<Campaign[], unknown>({
+      const response = await client.get<DtoCampaign[], unknown>({
         url: '/api/v1/campaigns',
       });
-      const result = response as { data?: Campaign[]; error?: { message?: string } };
+      const result = response as { data?: DtoCampaign[]; error?: { message?: string } };
       if (result.error) {
         return [];
       }

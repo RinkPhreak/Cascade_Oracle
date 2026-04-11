@@ -1,8 +1,8 @@
-import type { TgAccount, AccountEvent, AccountEventType } from '../../../api/extended-types';
+import type { DtoTgAccount, DtoAccountEvent, DtoAccountEventType } from '../../../api/generated';
 import { useAccountEvents } from '../hooks/useAccounts';
 import { Drawer } from '../../../shared/components/Drawer';
 
-const eventTypeColors: Record<AccountEventType, string> = {
+const eventTypeColors: Record<DtoAccountEventType, string> = {
   BANNED: 'bg-danger text-white',
   SERVICE_NOTICE: 'bg-yellow-500 text-black',
   RECONNECT: 'bg-blue-500 text-white',
@@ -13,7 +13,7 @@ const eventTypeColors: Record<AccountEventType, string> = {
   STATUS_CHANGE: 'bg-accent-cyan text-black',
 };
 
-const EventTypeLabels: Record<AccountEventType, string> = {
+const EventTypeLabels: Record<DtoAccountEventType, string> = {
   BANNED: 'БАН',
   SERVICE_NOTICE: 'УВЕДОМЛЕНИЕ',
   RECONNECT: 'ПЕРЕПОДКЛЮЧЕНИЕ',
@@ -24,7 +24,7 @@ const EventTypeLabels: Record<AccountEventType, string> = {
   STATUS_CHANGE: 'СМЕНА СТАТУСА',
 };
 
-const EventItem = ({ event }: { event: AccountEvent }) => {
+const EventItem = ({ event }: { event: DtoAccountEvent }) => {
   const colorClass = eventTypeColors[event.type] ?? 'bg-neutral-600 text-white';
   const label = EventTypeLabels[event.type] ?? event.type;
 
@@ -58,7 +58,7 @@ const EventItem = ({ event }: { event: AccountEvent }) => {
 };
 
 interface AccountEventDrawerProps {
-  account: TgAccount | null;
+  account: DtoTgAccount | null;
   onClose: () => void;
 }
 

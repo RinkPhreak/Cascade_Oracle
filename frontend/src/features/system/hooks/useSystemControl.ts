@@ -1,19 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { postApiV1SystemHalt, postApiV1SystemResume } from '../../../api/generated';
-import type { SystemMetrics } from '../../../api/extended-types';
+import type { DtoSystemMetrics } from '../../../api/generated';
 import { client } from '../../../api/client';
 import { toast } from '../../../shared/hooks/useToast';
 
 /** Fetch live system metrics: memory ratio, active account count, system status. */
 export const useSystemMetrics = () =>
-  useQuery<SystemMetrics>({
+  useQuery<DtoSystemMetrics>({
     queryKey: ['system', 'metrics'],
     queryFn: async () => {
-      const response = await client.get<SystemMetrics, unknown>({
+      const response = await client.get<DtoSystemMetrics, unknown>({
         url: '/api/v1/system/metrics',
       });
       // hey-api client returns { data, error, response }
-      const result = response as { data?: SystemMetrics; error?: { message?: string } };
+      const result = response as { data?: DtoSystemMetrics; error?: { message?: string } };
       if (result.error) {
         // Fallback for missing backend endpoint
         return {

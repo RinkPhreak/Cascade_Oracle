@@ -3,11 +3,11 @@ import { CampaignList } from '../features/campaigns/components/CampaignList';
 import { CampaignMonitor } from '../features/campaigns/components/CampaignMonitor';
 import { CampaignWizard } from '../features/campaigns/components/CampaignWizard/CampaignWizard';
 import { useCampaigns } from '../features/campaigns/hooks/useCampaigns';
-import type { Campaign } from '../api/extended-types';
+import type { DtoCampaign } from '../api/generated';
 
 export const CampaignsPage = () => {
   const { data: campaigns = [], isLoading } = useCampaigns();
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [selectedCampaign, setSelectedCampaign] = useState<DtoCampaign | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
 
   // Stats
@@ -60,10 +60,10 @@ export const CampaignsPage = () => {
         isOpen={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onCreated={(c) => {
-          const newCampaign: Campaign = {
+          const newCampaign: DtoCampaign = {
             id: c.id ?? '',
             name: c.name ?? '',
-            status: (c.status as Campaign['status']) ?? 'DRAFT',
+            status: (c.status as DtoCampaign['status']) ?? 'DRAFT',
             scheduled_at: c.scheduled_at ?? null,
             created_at: c.created_at ?? new Date().toISOString(),
             total_contacts: 0,

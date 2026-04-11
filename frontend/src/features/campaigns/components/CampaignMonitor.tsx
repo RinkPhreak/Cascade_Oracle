@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Campaign } from '../../../api/extended-types';
+import type { DtoCampaign as Campaign } from '../../../api/generated';
 import { useCampaignStats } from '../hooks/useCampaignTasks';
 import { useStartCampaign } from '../hooks/useStartCampaign';
 import { usePauseCampaign } from '../hooks/usePauseCampaign';

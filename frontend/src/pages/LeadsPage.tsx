@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { LeadsTable } from '../features/leads/components/LeadsTable';
 import { ContactHistoryModal } from '../features/leads/components/ContactHistoryModal';
 import { useLeads } from '../features/leads/hooks/useLeads';
-import type { Contact } from '../api/extended-types';
+import type { DtoContact } from '../api/generated';
 
 export const LeadsPage = () => {
   const { data: contacts = [], isLoading, isError } = useLeads();
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedContact, setSelectedContact] = useState<DtoContact | null>(null);
   const [search, setSearch] = useState('');
 
   const filtered = search.trim()

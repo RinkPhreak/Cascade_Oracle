@@ -5,14 +5,14 @@ import { ImportAccountModal } from '../features/pool/components/AddAccountModal'
 import { ProxyTab } from '../features/pool/components/ProxyTab';
 import { useAccounts } from '../features/pool/hooks/useAccounts';
 import { useProxies } from '../features/pool/hooks/useProxies';
-import type { TgAccount } from '../api/extended-types';
+import type { DtoTgAccount } from '../api/generated';
 
 type Tab = 'accounts' | 'proxies';
 
 export const PoolPage = () => {
   const [tab, setTab] = useState<Tab>('accounts');
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<TgAccount | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<DtoTgAccount | null>(null);
 
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
   const { data: proxies = [] } = useProxies();

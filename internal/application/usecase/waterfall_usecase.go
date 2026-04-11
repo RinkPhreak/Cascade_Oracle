@@ -54,11 +54,31 @@ func NewWaterfallUseCase(
 	}
 }
 
+// ProcessContact is the main entry point called by the Asynq worker.
+// PERFORMANCE FIX: Instead of blocking on sleeps, it dispatches to step handlers
+// that return immediately and re-enqueue the next step with a delay.
 func (u *WaterfallUseCase) ProcessContact(ctx context.Context, payload domain.WaterfallPayload) error {
 	if u.isSuspended(ctx) {
 		return domain.ErrSystemSuspended
 	}
 
+	switch payload.Step {
+	case domain.StepInit:
+		return u.stepInit(ctx, payload)
+	case domain.StepPresenceCheck:
+		return u.stepPresenceCheck(ctx, payload)
+	case domain.StepSend:
+		return u.stepSend(ctx, payload)
+	case domain.StepRetry:
+		return u.stepRetry(ctx, payload)
+	default:
+		return fmt.Errorf("unknown waterfall step: %d", payload.Step)
+	}
+}
+
+// stepInit resolves channels, picks an account, checks cache, and either
+// fast-paths or schedules the presence check with a delay.
+func (u *WaterfallUseCase) stepInit(ctx context.Context, payload domain.WaterfallPayload) error {
 	contact, err := u.contactRepo.GetByID(ctx, payload.ContactID)
 	if err != nil {
 		return err
@@ -78,104 +98,385 @@ func (u *WaterfallUseCase) ProcessContact(ctx context.Context, payload domain.Wa
 
 	for _, channel := range channels {
 		if channel == "telegram" && u.isPoolCritical(ctx) {
-			continue // graceful cascade
+			continue
 		}
 
-		var account *domain.Account
-		var proxy *domain.Proxy
-
 		if channel == "telegram" {
-			account, err = u.accountRepo.GetLeastBusyActiveAccount(ctx, channel)
+			account, err := u.accountRepo.GetLeastBusyActiveAccount(ctx, channel)
 			if err != nil {
-				continue // Exhausted active pool, fallback to SMS
+				continue
 			}
 			if !account.CanSend(time.Now()) {
 				continue
 			}
-			proxy, err = u.proxyRepo.GetByID(ctx, account.ProxyID)
-			if err != nil || !proxy.IsHealthy() {
-				u.accountRepo.UpdateAccount(ctx, account) // Or degrade proxy, simplified
+			prx, err := u.proxyRepo.GetByID(ctx, account.ProxyID)
+			if err != nil || !prx.IsHealthy() {
 				continue
 			}
+
+			plainPhone, err := u.crypto.Decrypt(contact.Phone)
+			if err != nil {
+				continue
+			}
+
+			// Check presence cache before scheduling the delay
+			keyPos := "tg:check:positive:" + plainPhone
+			if exists, _ := u.cache.Exists(ctx, keyPos); exists {
+				// Cached positive — skip presence check, go directly to send with pre-send delay
+				return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+					CampaignID: payload.CampaignID,
+					ContactID:  payload.ContactID,
+					Step:       domain.StepSend,
+					Channel:    channel,
+					AccountID:  account.ID,
+				}, time.Duration(8+rand.Intn(17))*time.Second)
+			}
+
+			keyNeg := "tg:check:negative:" + plainPhone
+			if exists, _ := u.cache.Exists(ctx, keyNeg); exists {
+				// Cached negative — skip telegram
+				continue
+			}
+
+			if account.DailyCheckCount >= 100 {
+				continue
+			}
+
+			// PERFORMANCE FIX: Schedule presence check after humanizing delay instead of blocking here
+			return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+				CampaignID: payload.CampaignID,
+				ContactID:  payload.ContactID,
+				Step:       domain.StepPresenceCheck,
+				Channel:    channel,
+				AccountID:  account.ID,
+			}, time.Duration(45+rand.Intn(30))*time.Second)
 		}
 
-		ikey := u.generateIdempotencyKey(contact.ID, campaign.ID, channel)
-		
+		// SMS channel — no presence check needed
+		return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+			CampaignID: payload.CampaignID,
+			ContactID:  payload.ContactID,
+			Step:       domain.StepSend,
+			Channel:    channel,
+		}, time.Duration(8+rand.Intn(17))*time.Second)
+	}
+
+	// All channels exhausted at init
+	u.campaignRepo.UpdateCampaignContactStatus(ctx, payload.CampaignID, payload.ContactID, domain.CampaignContactFailed)
+	return nil
+}
+
+// stepPresenceCheck performs the actual ImportContacts to check TG presence.
+// BLOCKER 2 FIX: Does NOT call DeleteContacts here. Imported user IDs are passed
+// forward in the payload and cleaned up after send completes.
+func (u *WaterfallUseCase) stepPresenceCheck(ctx context.Context, payload domain.WaterfallPayload) error {
+	contact, err := u.contactRepo.GetByID(ctx, payload.ContactID)
+	if err != nil {
+		return err
+	}
+
+	plainPhone, err := u.crypto.Decrypt(contact.Phone)
+	if err != nil {
+		return err
+	}
+
+	account, err := u.accountRepo.GetAccountByID(ctx, payload.AccountID)
+	if err != nil {
+		return err
+	}
+
+	imported, err := u.tgClient.ImportContacts(ctx, account.ID, []string{plainPhone})
+	if err != nil {
+		// Presence check failed — escalate to SMS by re-entering stepInit without TG
+		slog.Warn("presence check ImportContacts failed", "error", err, "account_id", account.ID)
+		u.campaignRepo.UpdateCampaignContactStatus(ctx, payload.CampaignID, payload.ContactID, domain.CampaignContactFailed)
+		return nil
+	}
+
+	var importedUserIDs []int64
+	for _, imp := range imported {
+		importedUserIDs = append(importedUserIDs, imp.UserID)
+	}
+
+	found := len(imported) > 0
+
+	// Update cache and daily check counter
+	if found {
+		u.cache.Set(ctx, "tg:check:positive:"+plainPhone, "1", 6*time.Hour)
+	} else {
+		u.cache.Set(ctx, "tg:check:negative:"+plainPhone, "1", 20*time.Minute)
+	}
+	account.IncrementDailyCheck()
+	_ = u.accountRepo.UpdateAccount(ctx, account)
+
+	if !found {
+		// Not on Telegram — record failure, let the channel loop in a new init handle SMS
+		// Create a failed attempt record
+		ikey := u.generateIdempotencyKey(contact.ID, payload.CampaignID, payload.Channel)
 		attID, _ := uuid.NewV7()
 		attempt := &domain.SendAttempt{
 			ID:             attID,
 			IdempotencyKey: ikey,
 			AttemptNumber:  1,
+			CampaignID:     payload.CampaignID,
+			ContactID:      contact.ID,
+			Channel:        payload.Channel,
+			AccountID:      &account.ID,
+			Status:         domain.AttemptStatusFailed,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		}
+		u.failAttempt(ctx, attempt, "NOT_FOUND", "User not on Telegram")
+		_ = u.attemptRepo.Upsert(ctx, attempt)
+
+		// Try SMS fallback by scheduling a new send step
+		return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+			CampaignID: payload.CampaignID,
+			ContactID:  payload.ContactID,
+			Step:       domain.StepSend,
+			Channel:    "sms",
+		}, time.Duration(8+rand.Intn(17))*time.Second)
+	}
+
+	// Found on Telegram — schedule the actual send with delay
+	// BLOCKER 2 FIX: Pass importedUserIDs forward; they'll be cleaned up after send
+	return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+		CampaignID:      payload.CampaignID,
+		ContactID:       payload.ContactID,
+		Step:            domain.StepSend,
+		Channel:         payload.Channel,
+		AccountID:       payload.AccountID,
+		ImportedUserIDs: importedUserIDs,
+	}, time.Duration(8+rand.Intn(17))*time.Second)
+}
+
+// stepSend performs a single send attempt without blocking sleeps.
+func (u *WaterfallUseCase) stepSend(ctx context.Context, payload domain.WaterfallPayload) error {
+	return u.doSend(ctx, payload, 0)
+}
+
+// stepRetry performs a retry send attempt.
+func (u *WaterfallUseCase) stepRetry(ctx context.Context, payload domain.WaterfallPayload) error {
+	return u.doSend(ctx, payload, payload.RetryIndex)
+}
+
+// doSend is the unified send logic for both initial and retry attempts.
+func (u *WaterfallUseCase) doSend(ctx context.Context, payload domain.WaterfallPayload, retryIdx int) error {
+	contact, err := u.contactRepo.GetByID(ctx, payload.ContactID)
+	if err != nil {
+		return err
+	}
+
+	campaign, err := u.campaignRepo.GetByID(ctx, payload.CampaignID)
+	if err != nil {
+		return err
+	}
+
+	plainPhone, err := u.crypto.Decrypt(contact.Phone)
+	if err != nil {
+		u.cleanupImportedContacts(ctx, payload)
+		u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
+		return nil
+	}
+
+	// NITPICK 2 FIX: When name is empty, use an impersonal greeting instead of "User"
+	// which signals spam and increases ban risk.
+	plainName, _ := u.crypto.Decrypt(contact.Name)
+
+	template, err := u.campaignRepo.GetTemplate(ctx, campaign.ID, payload.Channel)
+	if err != nil {
+		u.cleanupImportedContacts(ctx, payload)
+		u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
+		return nil
+	}
+
+	// Render template with name-aware greeting
+	text := template.Content
+	if plainName != "" {
+		text = strings.ReplaceAll(text, "{{Greeting}}", "Здравствуйте, "+plainName+"!")
+		text = strings.ReplaceAll(text, "{{Name}}", plainName)
+	} else {
+		text = strings.ReplaceAll(text, "{{Greeting}}", "Добрый день!")
+		text = strings.ReplaceAll(text, "{{Name}}", "")
+	}
+	text = strings.ReplaceAll(text, "{{Phone}}", plainPhone)
+
+	// Upsert attempt record
+	ikey := u.generateIdempotencyKey(contact.ID, campaign.ID, payload.Channel)
+	var attempt *domain.SendAttempt
+
+	if payload.AttemptID != uuid.Nil {
+		attempt, err = u.attemptRepo.GetByID(ctx, payload.AttemptID)
+		if err != nil {
+			return err
+		}
+	} else {
+		attID, _ := uuid.NewV7()
+		attempt = &domain.SendAttempt{
+			ID:             attID,
+			IdempotencyKey: ikey,
+			AttemptNumber:  retryIdx + 1,
 			CampaignID:     campaign.ID,
 			ContactID:      contact.ID,
-			Channel:        channel,
+			Channel:        payload.Channel,
 			Status:         domain.AttemptStatusInProgress,
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
 		}
-		if account != nil {
-			attempt.AccountID = &account.ID
+		if payload.AccountID != uuid.Nil {
+			attempt.AccountID = &payload.AccountID
 		}
-		if proxy != nil {
-			attempt.ProxyID = &proxy.ID
-		}
-
 		if err := u.attemptRepo.Upsert(ctx, attempt); err != nil {
 			return err
 		}
-
-		existing, err := u.attemptRepo.GetByIdempotencyKey(ctx, ikey)
-		if err != nil {
-			return err
-		}
-		if existing.Status == domain.AttemptStatusDelivered {
-			return nil // guard
-		}
-
-		plainPhone, err := u.crypto.Decrypt(contact.Phone)
-		if err != nil {
-			continue
-		}
-
-		// Decrypt Name for templating
-		plainName, _ := u.crypto.Decrypt(contact.Name)
-		if plainName == "" { plainName = "User" }
-
-		if channel == "telegram" {
-			presence, pErr := u.checkTelegramPresence(ctx, account, plainPhone)
-			if pErr != nil || !presence {
-				u.failAttempt(ctx, existing, "NOT_FOUND", "User not on Telegram or cap reached")
-				continue
-			}
-		}
-
-		template, err := u.campaignRepo.GetTemplate(ctx, campaign.ID, channel)
-		if err != nil {
-			u.failAttempt(ctx, existing, "NO_TEMPLATE", "Template missing")
-			continue
-		}
-
-		// Tier 2.4: Render Template
-		text := template.Content
-		text = strings.ReplaceAll(text, "{{Name}}", plainName)
-		text = strings.ReplaceAll(text, "{{Phone}}", plainPhone)
-
-		result, resultErr := u.sendWithRetry(ctx, channel, account, existing, plainPhone, text)
-		if resultErr == nil && result == domain.AttemptStatusDelivered {
-			pref := &domain.ContactChannelPreference{
-				ContactID:        contact.ID,
-				PreferredChannel: channel,
-				UpdatedAt:        time.Now(),
-			}
-			_ = u.contactRepo.SavePreference(ctx, pref)
-			
-			u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactCompleted)
-			return nil
-		}
 	}
 
+	// Check idempotency guard
+	existing, err := u.attemptRepo.GetByIdempotencyKey(ctx, ikey)
+	if err == nil && existing.Status == domain.AttemptStatusDelivered {
+		u.cleanupImportedContacts(ctx, payload)
+		return nil
+	}
+
+	attempt.AttemptNumber = retryIdx + 1
+
+	var latency int
+	var sendErr error
+
+	if payload.Channel == "telegram" {
+		account, accErr := u.accountRepo.GetAccountByID(ctx, payload.AccountID)
+		if accErr != nil {
+			u.cleanupImportedContacts(ctx, payload)
+			u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
+			return nil
+		}
+
+		hourlyKey := fmt.Sprintf("cascade:account:%s:hourly", account.ID.String())
+		hCount, _ := u.cache.Increment(ctx, hourlyKey)
+		if hCount == 1 {
+			u.cache.Expire(ctx, hourlyKey, time.Hour)
+		}
+
+		if hCount > 8 {
+			slog.Warn("hourly burst cap reached", "account_id", account.ID, "contact_id", attempt.ContactID)
+			u.failAttempt(ctx, attempt, "RATE_LIMIT", domain.ErrRateLimit.Error())
+			u.cleanupImportedContacts(ctx, payload)
+			u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
+			return nil
+		}
+
+		latency, sendErr = u.tgClient.Send(ctx, account.ID, plainPhone, text)
+
+		// Handle fatal TG errors
+		if sendErr != nil {
+			if errors.Is(sendErr, domain.ErrPeerFlood) {
+				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
+				if acc != nil {
+					acc.SetCooldown(time.Now().Add(24 * time.Hour))
+					u.accountRepo.UpdateAccount(ctx, acc)
+				}
+				u.failAttempt(ctx, attempt, "PEER_FLOOD", sendErr.Error())
+				u.cleanupImportedContacts(ctx, payload)
+				u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
+				return nil
+			}
+			if errors.Is(sendErr, domain.ErrAuthUnregistered) {
+				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
+				if acc != nil {
+					acc.TransitionState(domain.StateBanned)
+					u.accountRepo.UpdateAccount(ctx, acc)
+				}
+				u.failAttempt(ctx, attempt, "BANNED", sendErr.Error())
+				u.cleanupImportedContacts(ctx, payload)
+				u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
+				return nil
+			}
+			if errors.Is(sendErr, domain.ErrUserNotFound) {
+				u.failAttempt(ctx, attempt, "NOT_FOUND", sendErr.Error())
+				u.cleanupImportedContacts(ctx, payload)
+				// Fallback to SMS
+				return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+					CampaignID: payload.CampaignID,
+					ContactID:  payload.ContactID,
+					Step:       domain.StepSend,
+					Channel:    "sms",
+				}, time.Duration(8+rand.Intn(17))*time.Second)
+			}
+		}
+	} else {
+		// SMS channel
+		latency, sendErr = u.smsClient.Send(ctx, plainPhone, text)
+	}
+
+	if sendErr == nil {
+		// Success!
+		attempt.MarkDelivered(latency)
+		u.attemptRepo.Update(ctx, attempt)
+
+		if payload.AccountID != uuid.Nil {
+			acc, _ := u.accountRepo.GetAccountByID(ctx, payload.AccountID)
+			if acc != nil {
+				acc.IncrementDailySend()
+				u.accountRepo.UpdateAccount(ctx, acc)
+			}
+		}
+
+		pref := &domain.ContactChannelPreference{
+			ContactID:        contact.ID,
+			PreferredChannel: payload.Channel,
+			UpdatedAt:        time.Now(),
+		}
+		_ = u.contactRepo.SavePreference(ctx, pref)
+
+		// BLOCKER 2 FIX: Clean up imported contacts AFTER successful send
+		u.cleanupImportedContacts(ctx, payload)
+
+		u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactCompleted)
+		return nil
+	}
+
+	// Send failed — check if we can retry
+	maxRetries := 2
+	backoffs := []time.Duration{30 * time.Second, 90 * time.Second}
+
+	if retryIdx < maxRetries {
+		// PERFORMANCE FIX: Schedule retry with backoff delay instead of blocking sleep
+		return u.enqueueDeferred(ctx, domain.WaterfallPayload{
+			CampaignID:      payload.CampaignID,
+			ContactID:       payload.ContactID,
+			Step:            domain.StepRetry,
+			Channel:         payload.Channel,
+			AccountID:       payload.AccountID,
+			AttemptID:       attempt.ID,
+			ImportedUserIDs: payload.ImportedUserIDs,
+			RetryIndex:      retryIdx + 1,
+		}, backoffs[retryIdx])
+	}
+
+	// All retries exhausted
+	u.failAttempt(ctx, attempt, "EXHAUSTED", sendErr.Error())
+	u.cleanupImportedContacts(ctx, payload)
 	u.campaignRepo.UpdateCampaignContactStatus(ctx, campaign.ID, contact.ID, domain.CampaignContactFailed)
 	return nil
+}
+
+// cleanupImportedContacts deletes imported contacts from the TG account's contact list.
+// BLOCKER 2 FIX: This is called at the END of the processing flow (success or failure),
+// not immediately after presence check. This prevents the phantom contact problem where
+// DeleteContacts removes the access_hash needed by ResolvePhone in Send.
+func (u *WaterfallUseCase) cleanupImportedContacts(ctx context.Context, payload domain.WaterfallPayload) {
+	if len(payload.ImportedUserIDs) > 0 && payload.AccountID != uuid.Nil {
+		if err := u.tgClient.DeleteContacts(ctx, payload.AccountID, payload.ImportedUserIDs); err != nil {
+			slog.Warn("failed to cleanup imported contacts", "error", err, "account_id", payload.AccountID)
+		}
+	}
+}
+
+// enqueueDeferred schedules the next step with a delay. The worker returns immediately.
+// PERFORMANCE FIX: Replaces all safeSleep calls that were blocking Asynq worker goroutines.
+func (u *WaterfallUseCase) enqueueDeferred(ctx context.Context, payload domain.WaterfallPayload, delay time.Duration) error {
+	processAt := time.Now().Add(delay)
+	return u.enqueuer.EnqueueWaterfall(ctx, payload, &processAt)
 }
 
 func (u *WaterfallUseCase) isSuspended(ctx context.Context) bool {
@@ -206,158 +507,7 @@ func (u *WaterfallUseCase) generateIdempotencyKey(contact, campaign uuid.UUID, c
 	return uuid.NewMD5(uuid.NameSpaceURL, []byte(contact.String()+campaign.String()+channel))
 }
 
-func (u *WaterfallUseCase) safeSleep(ctx context.Context, d time.Duration) error {
-	select {
-	case <-time.After(d):
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
 func (u *WaterfallUseCase) failAttempt(ctx context.Context, attempt *domain.SendAttempt, code, msg string) {
 	attempt.MarkFailed(code, msg, 0)
 	_ = u.attemptRepo.Update(ctx, attempt)
-}
-
-func (u *WaterfallUseCase) checkTelegramPresence(ctx context.Context, account *domain.Account, phone string) (bool, error) {
-	if account.DailyCheckCount >= 100 {
-		return false, domain.ErrDailyCheckCap
-	}
-	
-	keyPos := "tg:check:positive:" + phone
-	if exists, _ := u.cache.Exists(ctx, keyPos); exists {
-		return true, nil
-	}
-	
-	keyNeg := "tg:check:negative:" + phone
-	if exists, _ := u.cache.Exists(ctx, keyNeg); exists {
-		return false, nil
-	}
-	
-	if err := u.safeSleep(ctx, time.Duration(45+rand.Intn(30))*time.Second); err != nil {
-		return false, err
-	}
-	
-	imported, err := u.tgClient.ImportContacts(ctx, account.ID, []string{phone})
-	if err != nil {
-		return false, err
-	}
-	
-	var userIDs []int64
-	for _, imp := range imported {
-		userIDs = append(userIDs, imp.UserID)
-	}
-	
-	if len(userIDs) > 0 {
-		_ = u.tgClient.DeleteContacts(ctx, account.ID, userIDs)
-	}
-
-	found := len(imported) > 0
-	
-	if found {
-		u.cache.Set(ctx, keyPos, "1", 6*time.Hour)
-		account.IncrementDailyCheck()
-		_ = u.accountRepo.UpdateAccount(ctx, account)
-	} else {
-		u.cache.Set(ctx, keyNeg, "1", 20*time.Minute)
-		account.IncrementDailyCheck()
-		_ = u.accountRepo.UpdateAccount(ctx, account)
-	}
-	
-	return found, nil
-}
-
-func (u *WaterfallUseCase) sendWithRetry(
-	ctx context.Context,
-	channel string,
-	account *domain.Account,
-	attempt *domain.SendAttempt,
-	phone string,
-	content string,
-) (domain.DeliveryStatus, error) {
-	
-	maxRetries := 2
-	backoffs := []time.Duration{30 * time.Second, 90 * time.Second}
-
-	for i := 0; i <= maxRetries; i++ {
-		attempt.AttemptNumber = i + 1
-
-		var latency int
-		var err error
-		
-		if err = u.safeSleep(ctx, time.Duration(8+rand.Intn(17))*time.Second); err != nil {
-			return domain.AttemptStatusFailed, err
-		}
-		
-		if channel == "telegram" {
-			hourlyKey := fmt.Sprintf("cascade:account:%s:hourly", account.ID.String())
-			hCount, _ := u.cache.Increment(ctx, hourlyKey)
-			if hCount == 1 {
-				u.cache.Expire(ctx, hourlyKey, time.Hour)
-			}
-
-			if hCount > 8 {
-				err = domain.ErrRateLimit
-				slog.Warn("hourly burst cap reached", "account_id", account.ID, "contact_id", attempt.ContactID)
-				u.failAttempt(ctx, attempt, "RATE_LIMIT", err.Error())
-				return domain.AttemptStatusFailed, err
-			} else {
-				latency, err = u.tgClient.Send(ctx, account.ID, phone, content)
-			}
-		} else {
-			latency, err = u.smsClient.Send(ctx, phone, content)
-		}
-
-		if err == nil {
-			attempt.MarkDelivered(latency)
-			u.attemptRepo.Update(ctx, attempt)
-			
-			if account != nil {
-				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
-				if acc != nil {
-					acc.IncrementDailySend()
-					u.accountRepo.UpdateAccount(ctx, acc)
-				}
-			}
-			return domain.AttemptStatusDelivered, nil
-		}
-
-		if channel == "telegram" {
-			if errors.Is(err, domain.ErrPeerFlood) {
-				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
-				if acc != nil {
-					acc.SetCooldown(time.Now().Add(24 * time.Hour))
-					u.accountRepo.UpdateAccount(ctx, acc)
-				}
-				u.failAttempt(ctx, attempt, "PEER_FLOOD", err.Error())
-				return domain.AttemptStatusFailed, err // Escalate so waterfall loop switches account
-			}
-			if errors.Is(err, domain.ErrAuthUnregistered) {
-				acc, _ := u.accountRepo.GetAccountByID(ctx, account.ID)
-				if acc != nil {
-					acc.TransitionState(domain.StateBanned)
-					u.accountRepo.UpdateAccount(ctx, acc)
-				}
-				u.failAttempt(ctx, attempt, "BANNED", err.Error())
-				return domain.AttemptStatusFailed, err // Escalate
-			}
-			if errors.Is(err, domain.ErrUserNotFound) {
-				u.failAttempt(ctx, attempt, "NOT_FOUND", err.Error())
-				return domain.AttemptStatusFailed, nil // Not retryable, fallback to SMS gracefully
-			}
-		}
-
-		if i < maxRetries {
-			if err = u.safeSleep(ctx, backoffs[i]); err != nil {
-				return domain.AttemptStatusFailed, err
-			}
-			continue
-		}
-
-		u.failAttempt(ctx, attempt, "EXHAUSTED", err.Error())
-		return domain.AttemptStatusFailed, err
-	}
-	
-	return domain.AttemptStatusFailed, nil
 }

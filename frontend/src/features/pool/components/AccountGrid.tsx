@@ -1,12 +1,12 @@
-import type { TgAccount } from '../../../api/extended-types';
+import type { DtoTgAccount } from '../../../api/generated';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { useDeleteAccount } from '../hooks/useAccounts';
 
 interface AccountGridProps {
-  accounts: TgAccount[];
+  accounts: DtoTgAccount[];
   proxies: { id: string; host: string; port: number; is_healthy: boolean }[];
   isLoading: boolean;
-  onViewEvents: (account: TgAccount) => void;
+  onViewEvents: (account: DtoTgAccount) => void;
 }
 
 const DailyProgress = ({ count, limit }: { count: number; limit: number }) => {
@@ -31,7 +31,7 @@ const ProxyCell = ({
   proxyId,
   proxies,
 }: {
-  proxyId: string | null;
+  proxyId: string | null | undefined;
   proxies: AccountGridProps['proxies'];
 }) => {
   if (!proxyId) {

@@ -40,7 +40,7 @@ export const ImportAccountModal = ({ isOpen, onClose }: ImportAccountModalProps)
 
     const formData = new FormData();
     files.forEach((file) => {
-      formData.append('files', file);
+      formData.append('file', file);
     });
     formData.append('proxy_host', proxy.host);
     formData.append('proxy_port', proxy.port);

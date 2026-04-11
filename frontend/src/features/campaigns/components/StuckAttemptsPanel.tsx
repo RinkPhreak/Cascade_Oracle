@@ -1,5 +1,5 @@
 import { useStuckTasks, useRequeueTask } from '../hooks/useCampaignTasks';
-import type { CampaignTask } from '../../../api/extended-types';
+import type { DtoCampaignTask as CampaignTask } from '../../../api/generated';
 
 interface StuckAttemptsPanelProps {
   campaignId: string;

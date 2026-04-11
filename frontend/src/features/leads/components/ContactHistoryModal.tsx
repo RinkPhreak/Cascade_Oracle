@@ -1,4 +1,4 @@
-import type { Contact, ContactTrace } from '../../../api/extended-types';
+import type { DtoContact as Contact, DtoContactTrace as ContactTrace } from '../../../api/generated';
 import { Modal } from '../../../shared/components/Modal';
 import { useContactTrace } from '../hooks/useLeads';
 import { AnonymiseButton } from './AnonymiseButton';

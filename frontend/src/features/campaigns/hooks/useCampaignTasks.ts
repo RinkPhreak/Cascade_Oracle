@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CampaignStats, CampaignTask } from '../../../api/extended-types';
+import type { DtoCampaignStats, DtoCampaignTask } from '../../../api/generated';
 import { client } from '../../../api/client';
 import { toast } from '../../../shared/hooks/useToast';
 
 /** Fetch aggregated stats for a campaign, polling every 5s while running. */
 export const useCampaignStats = (campaignId: string | null) =>
-  useQuery<CampaignStats>({
+  useQuery<DtoCampaignStats>({
     queryKey: ['campaigns', campaignId, 'stats'],
     queryFn: async () => {
-      const response = await client.get<CampaignStats, unknown>({
+      const response = await client.get<DtoCampaignStats, unknown>({
         url: `/api/v1/campaigns/${campaignId}/stats`,
       });
-      const result = response as { data?: CampaignStats; error?: { message?: string } };
+      const result = response as { data?: DtoCampaignStats; error?: { message?: string } };
       if (result.error) {
         return {
           campaign_id: campaignId ?? '',
@@ -23,7 +23,7 @@ export const useCampaignStats = (campaignId: string | null) =>
           tg_attempted: 0,
           sms_attempted: 0,
           error_breakdown: {}
-        } as CampaignStats;
+        } as DtoCampaignStats;
       }
       return result.data!;
     },
@@ -33,15 +33,15 @@ export const useCampaignStats = (campaignId: string | null) =>
 
 /** Fetch tasks that have been in_progress for >10 minutes (600s). */
 export const useStuckTasks = (campaignId: string | null) =>
-  useQuery<CampaignTask[]>({
+  useQuery<DtoCampaignTask[]>({
     queryKey: ['campaigns', campaignId, 'stuck-tasks'],
     queryFn: async () => {
-      const response = await client.get<CampaignTask[], unknown>({
+      const response = await client.get<DtoCampaignTask[], unknown>({
         url: `/api/v1/campaigns/${campaignId}/tasks`,
         // Query params added via URL search string
       });
       // We filter client-side; ideally the backend supports ?status=in_progress&stuck_gt=600
-      const result = response as { data?: CampaignTask[]; error?: { message?: string } };
+      const result = response as { data?: DtoCampaignTask[]; error?: { message?: string } };
       if (result.error) {
         return [];
       }

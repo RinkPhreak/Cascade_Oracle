@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import type { Proxy, CreateProxyRequest } from '../../../api/extended-types';
+import type { DtoProxy, DtoCreateProxyRequest } from '../../../api/generated';
 import { useProxies, useAddProxy, useDeleteProxy } from '../hooks/useProxies';
 import { useAccounts } from '../hooks/useAccounts';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { ReassignProxyDialog } from './ReassignProxyDialog';
 
 const AddProxyForm = ({ onDone }: { onDone: () => void }) => {
-  const [form, setForm] = useState<CreateProxyRequest>({
+  const [form, setForm] = useState<DtoCreateProxyRequest>({
     host: '',
     port: 1080,
     username: '',
@@ -20,7 +20,7 @@ const AddProxyForm = ({ onDone }: { onDone: () => void }) => {
     addProxy.mutate(form, { onSuccess: onDone });
   };
 
-  const set = <K extends keyof CreateProxyRequest>(key: K, value: CreateProxyRequest[K]) =>
+  const set = <K extends keyof DtoCreateProxyRequest>(key: K, value: DtoCreateProxyRequest[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
@@ -87,7 +87,7 @@ const AddProxyForm = ({ onDone }: { onDone: () => void }) => {
         <select
           id="proxy-protocol"
           value={form.protocol}
-          onChange={(e) => set('protocol', e.target.value as CreateProxyRequest['protocol'])}
+          onChange={(e) => set('protocol', e.target.value as DtoCreateProxyRequest['protocol'])}
           className="bg-neutral-800 border border-neutral-700 focus:border-accent-cyan rounded-md
             px-3 py-2 text-sm text-white outline-none transition-colors"
         >
@@ -129,7 +129,7 @@ export const ProxyTab = () => {
   const deleteProxy = useDeleteProxy();
 
   const [showForm, setShowForm] = useState(false);
-  const [reassignProxy, setReassignProxy] = useState<Proxy | null>(null);
+  const [reassignProxy, setReassignProxy] = useState<DtoProxy | null>(null);
 
   return (
     <div>

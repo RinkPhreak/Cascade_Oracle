@@ -17,11 +17,11 @@ type smsRuClient struct {
 	httpClient *http.Client
 }
 
-func NewSMSRuClient(apiID string) port.SMSClient {
+func NewSMSRuClient(apiID string, timeout time.Duration) port.SMSClient {
 	return &smsRuClient{
 		apiID: apiID,
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: timeout,
 		},
 	}
 }
