@@ -71,5 +71,7 @@ type CampaignStats struct {
 	Completed      int
 	Replied        int
 	Failed         int
+	TGAttempted    int
+	SMSAttempted   int
 	ErrorBreakdown map[string]int // e.g. "USER_NOT_FOUND" -> 5
 }

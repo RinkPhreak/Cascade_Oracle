@@ -30,6 +30,8 @@ type CampaignStatsResponse struct {
 	Completed      int            `json:"completed"`
 	Replied        int            `json:"replied"`
 	Failed         int            `json:"failed"`
+	TGAttempted    int            `json:"tg_attempted"`
+	SMSAttempted   int            `json:"sms_attempted"`
 	ErrorBreakdown map[string]int `json:"error_breakdown"`
 }
 

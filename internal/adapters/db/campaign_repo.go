@@ -218,7 +218,36 @@ func (r *gormCampaignRepo) GetStats(ctx context.Context, id uuid.UUID, start, en
 		}
 	}
 
-	// 2. Error Breakdown from send_attempts
+	// 2. Channel Attempt Breakdown from send_attempts
+	type channelCount struct {
+		Channel string
+		Count   int
+	}
+	var cCounts []channelCount
+	chanQuery := db.Model(&sendAttemptModel{}).
+		Where("campaign_id = ?", id).
+		Select("channel, count(*) as count").
+		Group("channel")
+
+	if start != nil {
+		chanQuery = chanQuery.Where("updated_at >= ?", *start)
+	}
+	if end != nil {
+		chanQuery = chanQuery.Where("updated_at <= ?", *end)
+	}
+
+	if err := chanQuery.Find(&cCounts).Error; err == nil {
+		for _, cc := range cCounts {
+			switch cc.Channel {
+			case "telegram":
+				stats.TGAttempted = cc.Count
+			case "sms":
+				stats.SMSAttempted = cc.Count
+			}
+		}
+	}
+
+	// 3. Error Breakdown from send_attempts
 	type errorCount struct {
 		ErrorCode string
 		Count     int
@@ -237,8 +266,6 @@ func (r *gormCampaignRepo) GetStats(ctx context.Context, id uuid.UUID, start, en
 	}
 
 	if err := errQuery.Find(&eCounts).Error; err != nil {
-		// If sendAttemptModel is not visible here, I need to check where it's defined.
-		// It's in attempt_repo.go in the same package 'db', so it's visible.
 		return nil, err
 	}
 

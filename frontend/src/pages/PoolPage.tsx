@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AccountGrid } from '../features/pool/components/AccountGrid';
 import { AccountEventDrawer } from '../features/pool/components/AccountEventDrawer';
-import { AddAccountModal } from '../features/pool/components/AddAccountModal';
+import { ImportAccountModal } from '../features/pool/components/AddAccountModal';
 import { ProxyTab } from '../features/pool/components/ProxyTab';
 import { useAccounts } from '../features/pool/hooks/useAccounts';
 import { useProxies } from '../features/pool/hooks/useProxies';
@@ -84,7 +84,7 @@ export const PoolPage = () => {
       {tab === 'proxies' && <ProxyTab />}
 
       {/* Modals & Drawers */}
-      <AddAccountModal
+      <ImportAccountModal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
       />

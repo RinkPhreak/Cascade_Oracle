@@ -4,6 +4,17 @@ export type ClientOptions = {
     baseUrl: string;
 };
 
+export type DtoAccountResponse = {
+    channel?: string;
+    created_at?: string;
+    daily_check_count?: number;
+    daily_send_count?: number;
+    id?: string;
+    phone?: string;
+    proxy_id?: string;
+    status?: string;
+};
+
 export type DtoAnonymiseResponse = {
     contact_id?: string;
     message?: string;
@@ -35,24 +46,131 @@ export type DtoCampaignResponse = {
     status?: string;
 };
 
+export type DtoCampaignStatsResponse = {
+    completed?: number;
+    error_breakdown?: {
+        [key: string]: number;
+    };
+    failed?: number;
+    replied?: number;
+    sms_attempted?: number;
+    tg_attempted?: number;
+    total?: number;
+};
+
+export type DtoCampaignTaskResponse = {
+    attempt_number?: number;
+    channel?: string;
+    contact_id?: string;
+    id?: string;
+    status?: string;
+    updated_at?: string;
+};
+
+export type DtoContactTraceResponse = {
+    attempt?: number;
+    channel?: string;
+    error_code?: string;
+    error_message?: string;
+    id?: string;
+    status?: string;
+    timestamp?: string;
+};
+
 /**
  * Payload containing name, optional schedule, and mandatory templates for telegram/sms channels.
  */
 export type DtoCreateCampaignRequest = {
     name: string;
     scheduled_at?: string;
-    templates: {
+    /**
+     * <--- Убрали validate:"required"
+     */
+    templates?: {
         [key: string]: string;
     };
 };
 
-/**
- * Contains strict business error code and human-readable message.
- */
+export type DtoCreateProxyRequest = {
+    host: string;
+    id?: string;
+    password?: string;
+    port: number;
+    username?: string;
+};
+
 export type DtoErrorResponse = {
     code?: string;
     message?: string;
 };
+
+export type DtoLeadResponse = {
+    channel?: string;
+    id?: string;
+    message?: string;
+    name?: string;
+    phone?: string;
+    replied_at?: string;
+};
+
+export type DtoProxyResponse = {
+    created_at?: string;
+    host?: string;
+    id?: string;
+    port?: number;
+    status?: string;
+    username?: string;
+};
+
+export type DtoRegisterAccountRequest = {
+    phone: string;
+};
+
+export type DtoSystemMetricsResponse = {
+    active_tg_accounts?: number;
+    cascade_memory_usage_ratio?: number;
+    queue_depth?: number;
+    /**
+     * 'OPERATIONAL', 'DEGRADED', 'HALTED'
+     */
+    system_status?: string;
+    total_tg_accounts?: number;
+};
+
+export type GetApiV1AccountsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/accounts';
+};
+
+export type GetApiV1AccountsResponses = {
+    /**
+     * OK
+     */
+    200: Array<DtoAccountResponse>;
+};
+
+export type GetApiV1AccountsResponse = GetApiV1AccountsResponses[keyof GetApiV1AccountsResponses];
+
+export type PostApiV1AccountsRegisterData = {
+    /**
+     * Phone
+     */
+    body: DtoRegisterAccountRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/accounts/register';
+};
+
+export type PostApiV1AccountsRegisterResponses = {
+    /**
+     * Created
+     */
+    201: DtoAccountResponse;
+};
+
+export type PostApiV1AccountsRegisterResponse = PostApiV1AccountsRegisterResponses[keyof PostApiV1AccountsRegisterResponses];
 
 export type PostApiV1AuthLoginData = {
     /**
@@ -81,6 +199,22 @@ export type PostApiV1AuthLoginResponses = {
 };
 
 export type PostApiV1AuthLoginResponse = PostApiV1AuthLoginResponses[keyof PostApiV1AuthLoginResponses];
+
+export type GetApiV1CampaignsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/campaigns';
+};
+
+export type GetApiV1CampaignsResponses = {
+    /**
+     * OK
+     */
+    200: Array<DtoCampaignResponse>;
+};
+
+export type GetApiV1CampaignsResponse = GetApiV1CampaignsResponses[keyof GetApiV1CampaignsResponses];
 
 export type PostApiV1CampaignsData = {
     /**
@@ -210,6 +344,78 @@ export type PostApiV1CampaignsByIdStartResponses = {
     202: unknown;
 };
 
+export type GetApiV1CampaignsByIdStatsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign UUID
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Filter from (ISO8601)
+         */
+        start_time?: string;
+        /**
+         * Filter to (ISO8601)
+         */
+        end_time?: string;
+    };
+    url: '/api/v1/campaigns/{id}/stats';
+};
+
+export type GetApiV1CampaignsByIdStatsResponses = {
+    /**
+     * OK
+     */
+    200: DtoCampaignStatsResponse;
+};
+
+export type GetApiV1CampaignsByIdStatsResponse = GetApiV1CampaignsByIdStatsResponses[keyof GetApiV1CampaignsByIdStatsResponses];
+
+export type GetApiV1CampaignsByIdTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign UUID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/campaigns/{id}/tasks';
+};
+
+export type GetApiV1CampaignsByIdTasksResponses = {
+    /**
+     * OK
+     */
+    200: Array<DtoCampaignTaskResponse>;
+};
+
+export type GetApiV1CampaignsByIdTasksResponse = GetApiV1CampaignsByIdTasksResponses[keyof GetApiV1CampaignsByIdTasksResponses];
+
+export type GetApiV1ContactsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Filter only those who replied
+         */
+        has_replied?: boolean;
+    };
+    url: '/api/v1/contacts';
+};
+
+export type GetApiV1ContactsResponses = {
+    /**
+     * OK
+     */
+    200: Array<DtoLeadResponse>;
+};
+
+export type GetApiV1ContactsResponse = GetApiV1ContactsResponses[keyof GetApiV1ContactsResponses];
+
 export type PostApiV1ContactsByIdAnonymiseData = {
     body?: never;
     path: {
@@ -244,6 +450,62 @@ export type PostApiV1ContactsByIdAnonymiseResponses = {
 
 export type PostApiV1ContactsByIdAnonymiseResponse = PostApiV1ContactsByIdAnonymiseResponses[keyof PostApiV1ContactsByIdAnonymiseResponses];
 
+export type GetApiV1ContactsByIdTraceData = {
+    body?: never;
+    path: {
+        /**
+         * Contact UUID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/contacts/{id}/trace';
+};
+
+export type GetApiV1ContactsByIdTraceResponses = {
+    /**
+     * OK
+     */
+    200: Array<DtoContactTraceResponse>;
+};
+
+export type GetApiV1ContactsByIdTraceResponse = GetApiV1ContactsByIdTraceResponses[keyof GetApiV1ContactsByIdTraceResponses];
+
+export type GetApiV1ProxiesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/proxies';
+};
+
+export type GetApiV1ProxiesResponses = {
+    /**
+     * OK
+     */
+    200: Array<DtoProxyResponse>;
+};
+
+export type GetApiV1ProxiesResponse = GetApiV1ProxiesResponses[keyof GetApiV1ProxiesResponses];
+
+export type PostApiV1ProxiesData = {
+    /**
+     * Proxy Address
+     */
+    body: DtoCreateProxyRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/proxies';
+};
+
+export type PostApiV1ProxiesResponses = {
+    /**
+     * Created
+     */
+    201: DtoProxyResponse;
+};
+
+export type PostApiV1ProxiesResponse = PostApiV1ProxiesResponses[keyof PostApiV1ProxiesResponses];
+
 export type PostApiV1SystemHaltData = {
     /**
      * Reason and Re-auth
@@ -269,6 +531,22 @@ export type PostApiV1SystemHaltResponses = {
      */
     200: unknown;
 };
+
+export type GetApiV1SystemMetricsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/system/metrics';
+};
+
+export type GetApiV1SystemMetricsResponses = {
+    /**
+     * OK
+     */
+    200: DtoSystemMetricsResponse;
+};
+
+export type GetApiV1SystemMetricsResponse = GetApiV1SystemMetricsResponses[keyof GetApiV1SystemMetricsResponses];
 
 export type PostApiV1SystemResumeData = {
     /**

@@ -104,7 +104,7 @@ export interface Campaign {
 
 export interface CampaignStats {
   campaign_id: string;
-  total_contacts: number;
+  total: number;
   completed: number;
   replied: number;
   failed: number;

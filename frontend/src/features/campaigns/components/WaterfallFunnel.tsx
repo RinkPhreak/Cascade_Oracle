@@ -14,10 +14,17 @@ interface FunnelLayer {
 }
 
 export const WaterfallFunnel = ({ stats }: WaterfallFunnelProps) => {
-  const { total, tg_attempted, sms_attempted, completed, replied } = stats;
+  const { 
+    total = 0, 
+    tg_attempted = 0, 
+    sms_attempted = 0, 
+    completed = 0, 
+    replied = 0 
+  } = stats;
+
   if (total === 0) return null;
 
-  const pct = (n: number) => Math.round((n / total) * 100);
+  const pct = (n: number) => Math.round(((n ?? 0) / total) * 100);
 
   const layers: FunnelLayer[] = [
     {
@@ -75,7 +82,7 @@ export const WaterfallFunnel = ({ stats }: WaterfallFunnelProps) => {
                 style={{ width: `${trapezoidWidth}%` }}
               >
                 <span className={`text-xs font-mono font-bold ${layer.color}`}>
-                  {layer.count.toLocaleString('ru-RU')}
+                  {(layer.count ?? 0).toLocaleString('ru-RU')}
                 </span>
               </div>
             </div>

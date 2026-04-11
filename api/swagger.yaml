@@ -1,4 +1,23 @@
 definitions:
+  dto.AccountResponse:
+    properties:
+      channel:
+        type: string
+      created_at:
+        type: string
+      daily_check_count:
+        type: integer
+      daily_send_count:
+        type: integer
+      id:
+        type: string
+      phone:
+        type: string
+      proxy_id:
+        type: string
+      status:
+        type: string
+    type: object
   dto.AnonymiseResponse:
     properties:
       contact_id:
@@ -46,6 +65,57 @@ definitions:
       status:
         type: string
     type: object
+  dto.CampaignStatsResponse:
+    properties:
+      completed:
+        type: integer
+      error_breakdown:
+        additionalProperties:
+          type: integer
+        type: object
+      failed:
+        type: integer
+      replied:
+        type: integer
+      sms_attempted:
+        type: integer
+      tg_attempted:
+        type: integer
+      total:
+        type: integer
+    type: object
+  dto.CampaignTaskResponse:
+    properties:
+      attempt_number:
+        type: integer
+      channel:
+        type: string
+      contact_id:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  dto.ContactTraceResponse:
+    properties:
+      attempt:
+        type: integer
+      channel:
+        type: string
+      error_code:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      timestamp:
+        type: string
+    type: object
   dto.CreateCampaignRequest:
     description: Payload containing name, optional schedule, and mandatory templates
       for telegram/sms channels.
@@ -57,22 +127,125 @@ definitions:
       templates:
         additionalProperties:
           type: string
+        description: <--- Убрали validate:"required"
         type: object
     required:
     - name
-    - templates
+    type: object
+  dto.CreateProxyRequest:
+    properties:
+      host:
+        type: string
+      id:
+        type: string
+      password:
+        type: string
+      port:
+        type: integer
+      username:
+        type: string
+    required:
+    - host
+    - port
     type: object
   dto.ErrorResponse:
-    description: Contains strict business error code and human-readable message.
     properties:
       code:
         type: string
       message:
         type: string
     type: object
+  dto.LeadResponse:
+    properties:
+      channel:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      replied_at:
+        type: string
+    type: object
+  dto.ProxyResponse:
+    properties:
+      created_at:
+        type: string
+      host:
+        type: string
+      id:
+        type: string
+      port:
+        type: integer
+      status:
+        type: string
+      username:
+        type: string
+    type: object
+  dto.RegisterAccountRequest:
+    properties:
+      phone:
+        type: string
+    required:
+    - phone
+    type: object
+  dto.SystemMetricsResponse:
+    properties:
+      active_tg_accounts:
+        type: integer
+      cascade_memory_usage_ratio:
+        type: number
+      queue_depth:
+        type: integer
+      system_status:
+        description: '''OPERATIONAL'', ''DEGRADED'', ''HALTED'''
+        type: string
+      total_tg_accounts:
+        type: integer
+    type: object
 info:
   contact: {}
 paths:
+  /api/v1/accounts:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.AccountResponse'
+            type: array
+      security:
+      - Bearer: []
+      summary: List all Telegram accounts
+      tags:
+      - accounts
+  /api/v1/accounts/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Phone
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RegisterAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.AccountResponse'
+      security:
+      - Bearer: []
+      summary: Register a new TG account
+      tags:
+      - accounts
   /api/v1/auth/login:
     post:
       consumes:
@@ -99,6 +272,19 @@ paths:
       tags:
       - auth
   /api/v1/campaigns:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CampaignResponse'
+            type: array
+      security:
+      - Bearer: []
+      summary: List all campaigns
+      tags:
+      - campaigns
     post:
       consumes:
       - application/json
@@ -206,6 +392,71 @@ paths:
       summary: Enqueue campaign for processing
       tags:
       - campaigns
+  /api/v1/campaigns/{id}/stats:
+    get:
+      parameters:
+      - description: Campaign UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Filter from (ISO8601)
+        in: query
+        name: start_time
+        type: string
+      - description: Filter to (ISO8601)
+        in: query
+        name: end_time
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.CampaignStatsResponse'
+      security:
+      - Bearer: []
+      summary: Fetch campaign statistics
+      tags:
+      - campaigns
+  /api/v1/campaigns/{id}/tasks:
+    get:
+      parameters:
+      - description: Campaign UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.CampaignTaskResponse'
+            type: array
+      security:
+      - Bearer: []
+      summary: List in-progress delivery tasks
+      tags:
+      - campaigns
+  /api/v1/contacts:
+    get:
+      parameters:
+      - description: Filter only those who replied
+        in: query
+        name: has_replied
+        type: boolean
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.LeadResponse'
+            type: array
+      security:
+      - Bearer: []
+      summary: List contacts (leads)
+      tags:
+      - contacts
   /api/v1/contacts/{id}/anonymise:
     post:
       parameters:
@@ -234,6 +485,62 @@ paths:
       summary: Right to be Forgotten (152-FZ / GDPR)
       tags:
       - contacts
+  /api/v1/contacts/{id}/trace:
+    get:
+      parameters:
+      - description: Contact UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.ContactTraceResponse'
+            type: array
+      security:
+      - Bearer: []
+      summary: Fetch delivery trace for a contact
+      tags:
+      - contacts
+  /api/v1/proxies:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.ProxyResponse'
+            type: array
+      security:
+      - Bearer: []
+      summary: List all network proxies
+      tags:
+      - proxies
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Proxy Address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateProxyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.ProxyResponse'
+      security:
+      - Bearer: []
+      summary: Add a new proxy
+      tags:
+      - proxies
   /api/v1/system/halt:
     post:
       consumes:
@@ -257,6 +564,18 @@ paths:
       security:
       - Bearer: []
       summary: Emergency Break-Glass Halt
+      tags:
+      - system
+  /api/v1/system/metrics:
+    get:
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SystemMetricsResponse'
+      security:
+      - Bearer: []
+      summary: Fetch system health and halt state
       tags:
       - system
   /api/v1/system/resume:

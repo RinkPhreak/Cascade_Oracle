@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { PostApiV1AuthLoginData, PostApiV1AuthLoginErrors, PostApiV1AuthLoginResponses, PostApiV1CampaignsByIdImportData, PostApiV1CampaignsByIdImportErrors, PostApiV1CampaignsByIdImportResponses, PostApiV1CampaignsByIdPauseData, PostApiV1CampaignsByIdPauseErrors, PostApiV1CampaignsByIdPauseResponses, PostApiV1CampaignsByIdStartData, PostApiV1CampaignsByIdStartErrors, PostApiV1CampaignsByIdStartResponses, PostApiV1CampaignsData, PostApiV1CampaignsErrors, PostApiV1CampaignsResponses, PostApiV1ContactsByIdAnonymiseData, PostApiV1ContactsByIdAnonymiseErrors, PostApiV1ContactsByIdAnonymiseResponses, PostApiV1SystemHaltData, PostApiV1SystemHaltErrors, PostApiV1SystemHaltResponses, PostApiV1SystemResumeData, PostApiV1SystemResumeErrors, PostApiV1SystemResumeResponses } from './types.gen';
+import type { GetApiV1AccountsData, GetApiV1AccountsResponses, GetApiV1CampaignsByIdStatsData, GetApiV1CampaignsByIdStatsResponses, GetApiV1CampaignsByIdTasksData, GetApiV1CampaignsByIdTasksResponses, GetApiV1CampaignsData, GetApiV1CampaignsResponses, GetApiV1ContactsByIdTraceData, GetApiV1ContactsByIdTraceResponses, GetApiV1ContactsData, GetApiV1ContactsResponses, GetApiV1ProxiesData, GetApiV1ProxiesResponses, GetApiV1SystemMetricsData, GetApiV1SystemMetricsResponses, PostApiV1AccountsRegisterData, PostApiV1AccountsRegisterResponses, PostApiV1AuthLoginData, PostApiV1AuthLoginErrors, PostApiV1AuthLoginResponses, PostApiV1CampaignsByIdImportData, PostApiV1CampaignsByIdImportErrors, PostApiV1CampaignsByIdImportResponses, PostApiV1CampaignsByIdPauseData, PostApiV1CampaignsByIdPauseErrors, PostApiV1CampaignsByIdPauseResponses, PostApiV1CampaignsByIdStartData, PostApiV1CampaignsByIdStartErrors, PostApiV1CampaignsByIdStartResponses, PostApiV1CampaignsData, PostApiV1CampaignsErrors, PostApiV1CampaignsResponses, PostApiV1ContactsByIdAnonymiseData, PostApiV1ContactsByIdAnonymiseErrors, PostApiV1ContactsByIdAnonymiseResponses, PostApiV1ProxiesData, PostApiV1ProxiesResponses, PostApiV1SystemHaltData, PostApiV1SystemHaltErrors, PostApiV1SystemHaltResponses, PostApiV1SystemResumeData, PostApiV1SystemResumeErrors, PostApiV1SystemResumeResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -19,6 +19,23 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
+ * List all Telegram accounts
+ */
+export const getApiV1Accounts = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1AccountsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1AccountsResponses, unknown, ThrowOnError>({ url: '/api/v1/accounts', ...options });
+
+/**
+ * Register a new TG account
+ */
+export const postApiV1AccountsRegister = <ThrowOnError extends boolean = false>(options: Options<PostApiV1AccountsRegisterData, ThrowOnError>) => (options.client ?? client).post<PostApiV1AccountsRegisterResponses, unknown, ThrowOnError>({
+    url: '/api/v1/accounts/register',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Operator Login
  */
 export const postApiV1AuthLogin = <ThrowOnError extends boolean = false>(options: Options<PostApiV1AuthLoginData, ThrowOnError>) => (options.client ?? client).post<PostApiV1AuthLoginResponses, PostApiV1AuthLoginErrors, ThrowOnError>({
@@ -29,6 +46,11 @@ export const postApiV1AuthLogin = <ThrowOnError extends boolean = false>(options
         ...options.headers
     }
 });
+
+/**
+ * List all campaigns
+ */
+export const getApiV1Campaigns = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1CampaignsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1CampaignsResponses, unknown, ThrowOnError>({ url: '/api/v1/campaigns', ...options });
 
 /**
  * Create a new campaign
@@ -73,9 +95,46 @@ export const postApiV1CampaignsByIdPause = <ThrowOnError extends boolean = false
 export const postApiV1CampaignsByIdStart = <ThrowOnError extends boolean = false>(options: Options<PostApiV1CampaignsByIdStartData, ThrowOnError>) => (options.client ?? client).post<PostApiV1CampaignsByIdStartResponses, PostApiV1CampaignsByIdStartErrors, ThrowOnError>({ url: '/api/v1/campaigns/{id}/start', ...options });
 
 /**
+ * Fetch campaign statistics
+ */
+export const getApiV1CampaignsByIdStats = <ThrowOnError extends boolean = false>(options: Options<GetApiV1CampaignsByIdStatsData, ThrowOnError>) => (options.client ?? client).get<GetApiV1CampaignsByIdStatsResponses, unknown, ThrowOnError>({ url: '/api/v1/campaigns/{id}/stats', ...options });
+
+/**
+ * List in-progress delivery tasks
+ */
+export const getApiV1CampaignsByIdTasks = <ThrowOnError extends boolean = false>(options: Options<GetApiV1CampaignsByIdTasksData, ThrowOnError>) => (options.client ?? client).get<GetApiV1CampaignsByIdTasksResponses, unknown, ThrowOnError>({ url: '/api/v1/campaigns/{id}/tasks', ...options });
+
+/**
+ * List contacts (leads)
+ */
+export const getApiV1Contacts = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1ContactsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1ContactsResponses, unknown, ThrowOnError>({ url: '/api/v1/contacts', ...options });
+
+/**
  * Right to be Forgotten (152-FZ / GDPR)
  */
 export const postApiV1ContactsByIdAnonymise = <ThrowOnError extends boolean = false>(options: Options<PostApiV1ContactsByIdAnonymiseData, ThrowOnError>) => (options.client ?? client).post<PostApiV1ContactsByIdAnonymiseResponses, PostApiV1ContactsByIdAnonymiseErrors, ThrowOnError>({ url: '/api/v1/contacts/{id}/anonymise', ...options });
+
+/**
+ * Fetch delivery trace for a contact
+ */
+export const getApiV1ContactsByIdTrace = <ThrowOnError extends boolean = false>(options: Options<GetApiV1ContactsByIdTraceData, ThrowOnError>) => (options.client ?? client).get<GetApiV1ContactsByIdTraceResponses, unknown, ThrowOnError>({ url: '/api/v1/contacts/{id}/trace', ...options });
+
+/**
+ * List all network proxies
+ */
+export const getApiV1Proxies = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1ProxiesData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1ProxiesResponses, unknown, ThrowOnError>({ url: '/api/v1/proxies', ...options });
+
+/**
+ * Add a new proxy
+ */
+export const postApiV1Proxies = <ThrowOnError extends boolean = false>(options: Options<PostApiV1ProxiesData, ThrowOnError>) => (options.client ?? client).post<PostApiV1ProxiesResponses, unknown, ThrowOnError>({
+    url: '/api/v1/proxies',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Emergency Break-Glass Halt
@@ -88,6 +147,11 @@ export const postApiV1SystemHalt = <ThrowOnError extends boolean = false>(option
         ...options.headers
     }
 });
+
+/**
+ * Fetch system health and halt state
+ */
+export const getApiV1SystemMetrics = <ThrowOnError extends boolean = false>(options?: Options<GetApiV1SystemMetricsData, ThrowOnError>) => (options?.client ?? client).get<GetApiV1SystemMetricsResponses, unknown, ThrowOnError>({ url: '/api/v1/system/metrics', ...options });
 
 /**
  * Emergency Break-Glass Resume
