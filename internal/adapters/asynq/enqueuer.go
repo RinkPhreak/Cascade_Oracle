@@ -29,7 +29,7 @@ func (e *asynqEnqueuer) EnqueueWaterfall(ctx context.Context, payload domain.Wat
 
 	task := asynq.NewTask("cascade:waterfall:process", b)
 	var opts []asynq.Option
-	
+
 	// If campaign is scheduled for the future
 	if processAt != nil && processAt.After(time.Now()) {
 		opts = append(opts, asynq.ProcessAt(*processAt))

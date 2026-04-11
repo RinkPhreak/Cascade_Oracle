@@ -4,8 +4,8 @@ package http
 import (
 	"crypto/rsa"
 
-	"github.com/gofiber/fiber/v2"
 	"cascade/internal/delivery/http/middleware"
+	"github.com/gofiber/fiber/v2"
 )
 
 func SetupRoutes(app *fiber.App, pubKey *rsa.PublicKey, authH *AuthHandler, campH *CampaignHandler, sysH *SystemHandler, conH *ContactHandler, accH *AccountHandler, proxyH *ProxyHandler) {

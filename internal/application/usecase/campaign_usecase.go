@@ -159,7 +159,7 @@ func (u *CampaignUseCase) LaunchCampaign(ctx context.Context, campaignID uuid.UU
 			CampaignID: campaign.ID,
 			ContactID:  cc.ContactID,
 		}
-		
+
 		// Enqueue logic with schedule binding
 		if err := u.enqueuer.EnqueueWaterfall(ctx, payload, campaign.ScheduledAt); err != nil {
 			return err

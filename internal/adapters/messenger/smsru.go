@@ -38,7 +38,7 @@ func (c *smsRuClient) Send(ctx context.Context, phone string, message string) (i
 	}
 
 	url := fmt.Sprintf("https://sms.ru/sms/send?api_id=%s&to=%s&msg=%s&json=1", c.apiID, phone, message)
-	
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return 0, err
@@ -90,7 +90,7 @@ func (c *smsRuClient) GetBalance(ctx context.Context) (float64, error) {
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		return 0, err
 	}
-	
+
 	balance, ok := parsed["balance"].(float64)
 	if !ok {
 		return 0, fmt.Errorf("sms.ru API error: bad balance response")

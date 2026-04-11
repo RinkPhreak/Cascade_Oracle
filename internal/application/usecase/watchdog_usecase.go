@@ -25,7 +25,7 @@ func NewStuckAttemptWatchdog(repo port.AttemptRepository, campRepo port.Campaign
 
 func (w *StuckAttemptWatchdog) RecoverStuck(ctx context.Context, timeout time.Duration) error {
 	limitTime := time.Now().Add(-timeout)
-	
+
 	stuckAttempts, err := w.attemptRepo.GetStuck(ctx, limitTime)
 	if err != nil {
 		return err
@@ -56,7 +56,7 @@ func (w *StuckAttemptWatchdog) RecoverStuck(ctx context.Context, timeout time.Du
 			ContactID:  attempt.ContactID,
 			Channel:    fallbackChannel,
 		}
-		
+
 		if err := w.enqueuer.EnqueueWaterfall(ctx, payload, nil); err != nil {
 			slog.Error("failed to requeue stuck attempt", "attempt_id", attempt.ID, "error", err)
 			continue

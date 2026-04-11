@@ -53,6 +53,8 @@ type Account struct {
 	DailyCheckCount int
 	DailySendCount  int
 	CooldownUntil   *time.Time
+	DCId            int    // Data Center ID from Telegram session
+	DCAddr          string // Data Center server address
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

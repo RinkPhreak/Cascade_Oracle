@@ -32,9 +32,9 @@ func HandleWaterfallTask(uc *usecase.WaterfallUseCase) asynq.HandlerFunc {
 
 			// If something else goes wrong contextually, wait.
 			slog.Error("waterfall process runtime fault", "error", err, "contact_id", payload.ContactID)
-			return err 
+			return err
 		}
-		
+
 		return nil
 	}
 }

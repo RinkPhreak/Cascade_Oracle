@@ -9,9 +9,9 @@ import (
 const poolCriticalKey = "cascade:pool:critical"
 
 type MassBanDetector struct {
-	accountRepo   port.AccountRepository
-	cache         port.Cache
-	minThreshold  int
+	accountRepo  port.AccountRepository
+	cache        port.Cache
+	minThreshold int
 }
 
 func NewMassBanDetector(repo port.AccountRepository, cache port.Cache, minThreshold int) *MassBanDetector {

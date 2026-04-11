@@ -22,6 +22,7 @@ type campaignModel struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
+
 func (campaignModel) TableName() string { return "campaigns" }
 
 type messageTemplateModel struct {
@@ -32,6 +33,7 @@ type messageTemplateModel struct {
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
+
 func (messageTemplateModel) TableName() string { return "message_templates" }
 
 type campaignContactModel struct {
@@ -40,6 +42,7 @@ type campaignContactModel struct {
 	Status     string
 	CreatedAt  time.Time
 }
+
 func (campaignContactModel) TableName() string { return "campaign_contacts" }
 
 // -- Repository --

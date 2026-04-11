@@ -15,10 +15,10 @@ import (
 // -- DB Models --
 
 type sendAttemptModel struct {
-	ID             uuid.UUID `gorm:"primaryKey;type:uuid"`
-	IdempotencyKey uuid.UUID `gorm:"uniqueIndex;type:uuid"`
-	ContactID      uuid.UUID `gorm:"type:uuid"`
-	CampaignID     uuid.UUID `gorm:"type:uuid"`
+	ID             uuid.UUID  `gorm:"primaryKey;type:uuid"`
+	IdempotencyKey uuid.UUID  `gorm:"uniqueIndex;type:uuid"`
+	ContactID      uuid.UUID  `gorm:"type:uuid"`
+	CampaignID     uuid.UUID  `gorm:"type:uuid"`
 	AccountID      *uuid.UUID `gorm:"type:uuid"`
 	ProxyID        *uuid.UUID `gorm:"type:uuid"`
 	Channel        string

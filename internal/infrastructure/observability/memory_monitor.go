@@ -51,7 +51,7 @@ func (m *MemoryMonitor) evaluateMemory(ctx context.Context, thresholdPercent flo
 	if usage >= thresholdPercent {
 		slog.Warn("memory critical threshold breached", "usage", usage, "current_bytes", currentBytes, "max_bytes", maxBytes)
 		// Set suspension state for 10 seconds (slightly longer than ticker rhythm)
-		m.cache.Set(ctx, "cascade:memory:critical", "1", 10*time.Second) 
+		m.cache.Set(ctx, "cascade:memory:critical", "1", 10*time.Second)
 	}
 }
 
@@ -60,7 +60,7 @@ func (m *MemoryMonitor) getCgroupMemory() (uint64, uint64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	
+
 	maxRaw, err := os.ReadFile("/sys/fs/cgroup/memory.max")
 	if err != nil {
 		return 0, 0, err

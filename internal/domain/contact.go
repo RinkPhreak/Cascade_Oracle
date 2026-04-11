@@ -7,16 +7,16 @@ import (
 )
 
 type Contact struct {
-	ID          uuid.UUID
-	PhoneHash   string
-	Phone       string  // AES-256-GCM Encrypted
-	Name        string  // AES-256-GCM Encrypted
-	ExtraData   *string // Encrypted JSON
-	HasReplied  bool
-	RepliedAt   *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   *time.Time // Right to Erasure / Anonymised
+	ID         uuid.UUID
+	PhoneHash  string
+	Phone      string  // AES-256-GCM Encrypted
+	Name       string  // AES-256-GCM Encrypted
+	ExtraData  *string // Encrypted JSON
+	HasReplied bool
+	RepliedAt  *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	DeletedAt  *time.Time // Right to Erasure / Anonymised
 }
 
 func (c *Contact) MarkReplied(repliedAt time.Time) {
@@ -36,20 +36,20 @@ type ContactChannelPreference struct {
 }
 
 type ContactReply struct {
-	ID         uuid.UUID
-	ContactID  uuid.UUID
-	AccountID  uuid.UUID
-	Channel    string // telegram, sms
-	Message    *string // Encrypted
-	RepliedAt  time.Time
-	CreatedAt  time.Time
+	ID        uuid.UUID
+	ContactID uuid.UUID
+	AccountID uuid.UUID
+	Channel   string  // telegram, sms
+	Message   *string // Encrypted
+	RepliedAt time.Time
+	CreatedAt time.Time
 }
 
 type RepliedLead struct {
-	ID         uuid.UUID
-	Phone      string
-	Name       string
-	Message    string
-	Channel    string
-	RepliedAt  time.Time
+	ID        uuid.UUID
+	Phone     string
+	Name      string
+	Message   string
+	Channel   string
+	RepliedAt time.Time
 }

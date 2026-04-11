@@ -21,6 +21,9 @@ type TelegramClient interface {
 	Ping(ctx context.Context, accountID uuid.UUID) error
 	VerifySession(ctx context.Context, accountID uuid.UUID) (string, error)
 	StopClient(accountID uuid.UUID)
+	// VerifySessionWithCredentials verifies a session using custom API credentials and DC routing.
+	// This is used during account import when the session was created with different API_ID than system defaults.
+	VerifySessionWithCredentials(ctx context.Context, accountID uuid.UUID, appID int, appHash string, dcID int, dcAddr string) (string, error)
 }
 
 // SMSClient abstracts the sms.ru HTTP integration.

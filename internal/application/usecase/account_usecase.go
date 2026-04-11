@@ -15,6 +15,7 @@ import (
 	"github.com/gotd/td/session"
 
 	"cascade/internal/application/port"
+	"cascade/internal/adapters/messenger"
 	"cascade/internal/delivery/http/dto"
 	"cascade/internal/domain"
 )
@@ -133,7 +134,7 @@ func (u *AccountUseCase) RegisterAccount(ctx context.Context, phone string) (*do
 func (u *AccountUseCase) DeleteAccount(ctx context.Context, id uuid.UUID) error {
 	// 1. Stop the telegram client in the pool
 	u.tgClient.StopClient(id)
-	
+
 	// 2. Delete from DB
 	return u.accountRepo.DeleteAccount(ctx, id)
 }
@@ -201,6 +202,8 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 
 	// 5. Initialize Device Metadata
 	var meta struct {
+		AppID         int    `json:"app_id"`
+		AppHash       string `json:"app_hash"`
 		AppVersion    string `json:"app_version"`
 		DeviceModel   string `json:"device_model"`
 		SystemVersion string `json:"system_version"`
@@ -218,7 +221,7 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 		Addr:    teleSession.ServerAddress,
 		AuthKey: teleSession.AuthKey,
 	}
-	
+
 	marshaled, err := json.Marshal(gotdSessionData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal gotd session: %w", err)
@@ -235,6 +238,8 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 		Channel:     "telegram",
 		ProxyID:     proxy.ID,
 		Credentials: string(credBytes),
+		DCId:        teleSession.DCID,       // Persist DC ID from session for future reconnects
+		DCAddr:      teleSession.ServerAddress, // Persist DC server address from session
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -263,10 +268,21 @@ func (u *AccountUseCase) ImportAccount(ctx context.Context, files map[string][]b
 	}
 
 	// 9. Verify with gotd (Strict Timeout)
+	// CRITICAL FIX: Use custom credentials from JSON if provided, otherwise fall back to system defaults.
+	// This fixes AUTH_KEY_UNREGISTERED for sessions created with different API_ID (e.g., Telegram Desktop app_id=2040).
+	appID := meta.AppID
+	appHash := meta.AppHash
+
+	// Fall back to system defaults if JSON doesn't provide credentials
+	if appID == 0 || appHash == "" {
+		appID = u.tgClient.(*messenger.gotdClientPool).GetAppID()
+		appHash = u.tgClient.(*messenger.gotdClientPool).GetAppHash()
+	}
+
 	verifyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	phone, verifyErr := u.tgClient.VerifySession(verifyCtx, acc.ID)
+	phone, verifyErr := u.tgClient.VerifySessionWithCredentials(verifyCtx, acc.ID, appID, appHash, teleSession.DCID, teleSession.ServerAddress)
 	if verifyErr != nil {
 		importErr = fmt.Errorf("session verification failed (proxy or auth error): %w", verifyErr)
 		return nil, importErr
